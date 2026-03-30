@@ -2,9 +2,9 @@
 
 import type { ScreenPosition, WorldPosition } from '../types';
 
-// Diamond tile dimensions
-export const TILE_WIDTH = 64;
-export const TILE_HEIGHT = 32;
+// Diamond tile dimensions — matches Kenney isometric tile size (132x66 diamond face)
+export const TILE_WIDTH = 132;
+export const TILE_HEIGHT = 66;
 
 const HALF_W = TILE_WIDTH / 2;
 const HALF_H = TILE_HEIGHT / 2;

@@ -1,0 +1,30 @@
+Art Asset Credits for Dark Isle
+================================
+
+All assets are CC0 (Public Domain) licensed.
+
+1. Kenney.nl (CC0)
+   - Isometric Landscape: public/assets/kenney/landscape/
+   - Isometric City: public/assets/kenney/city/
+   - Tiny Dungeon: public/assets/kenney/tiny-dungeon/
+   - Tiny Town: public/assets/kenney/tiny-town/
+   - RPG Urban Pack: public/assets/kenney/rpg-urban/
+   - Roguelike Characters: public/assets/kenney/roguelike-characters/
+   Source: https://kenney.nl/assets
+
+2. OpenGameArt - Isometric Hero and Creatures (CC0)
+   - Characters: public/assets/characters/
+   - Includes: hero, skeleton, goblin, ogre, slime, werewolf, zombie, etc.
+   - Author: Clint Bellanger
+   Source: https://opengameart.org/content/isometric-hero-and-creatures
+
+3. OpenGameArt - Dungeon Tileset by Buch (CC0)
+   - Decorations: public/assets/decorations/dungeon_tiles_buch.png
+   Source: https://opengameart.org/content/dungeon-tileset
+
+4. Dungeon Crawl Stone Soup Tiles (CC0)
+   - Dungeon tiles: public/assets/dcss/dungeon/
+   - Monster tiles: public/assets/dcss/monster/
+   - Item tiles: public/assets/dcss/item/
+   - Effect tiles: public/assets/dcss/effect/
+   Source: https://opengameart.org/content/dungeon-crawl-32x32-tiles
