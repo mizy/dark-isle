@@ -238,6 +238,7 @@ export class TileMap {
   getWidth(): number { return this.width; }
   getHeight(): number { return this.height; }
   getLayerCount(): number { return this.layers.length; }
+  getLayers(): TileData[][][] { return this.layers; }
 
   destroy(): void {
     this.renderGroups.forEach((g) => g.destroy(true));

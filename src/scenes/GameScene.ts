@@ -4,6 +4,7 @@ import Phaser from 'phaser';
 import { generateTextures } from '../assets/textureGenerator';
 import { worldToScreen, screenToWorld, TILE_WIDTH } from '../systems/isometric';
 import { TileMap } from '../systems/tileMap';
+import { ChunkTileMap } from '../systems/chunkTileMap';
 import { EntityRenderer } from '../systems/entityRenderer';
 import { CameraSystem } from '../systems/camera';
 import { generateWorld } from '../systems/worldGenerator';
@@ -12,6 +13,8 @@ import { CombatSystem } from '../systems/combat';
 import { addAmbientParticles } from '../systems/ambientParticles';
 import { addTorchLighting, addLavaGlow } from '../systems/ambientLighting';
 import { HUD } from '../ui/hud';
+import { ChunkManager, CHUNK_SIZE, worldToChunkCoord, worldToLocalCoord, CHUNK_VIEW_DISTANCE } from '../systems/chunkManager';
+import { ChunkWorldGenerator } from '../systems/chunkWorldGenerator';
 import type { GameEntity, WorldGeneratorResult } from '../types';
 import {
   TILE_GRASS, TILE_STONE, TILE_WATER, TILE_OBSTACLE_ROCK, TILE_OBSTACLE_TREE,
@@ -23,7 +26,7 @@ import {
   DECO_MANOR_WALL, DECO_MANOR_BUILDING, DECO_FLOWER, DECO_BUSH, DECO_CITY_WALL,
 } from '../types';
 
-const MAP_SIZE = 64;
+const MAP_SIZE = 16;
 const MOVE_SPEED = 3;
 const LERP_FACTOR = 0.08;
 const ARRIVAL_THRESHOLD = 0.05;
@@ -32,6 +35,7 @@ const RESPAWN_DELAY = 5000;
 
 export class GameScene extends Phaser.Scene {
   private tileMap!: TileMap;
+  private chunkTileMap?: ChunkTileMap;
   private entityRenderer!: EntityRenderer;
   private cameraSystem!: CameraSystem;
   private combatSystem!: CombatSystem;
@@ -41,6 +45,8 @@ export class GameScene extends Phaser.Scene {
   private cursors!: Record<string, Phaser.Input.Keyboard.Key>;
   private worldData?: WorldGeneratorResult;
   private enemyCounter = 0;
+  private chunkManager?: ChunkManager;
+  private useChunkSystem = false;
 
   private targetX = 0;
   private targetY = 0;
@@ -59,12 +65,23 @@ export class GameScene extends Phaser.Scene {
     this.hasSpritesheets = this.textures.exists('sheet-player') && this.textures.exists('sheet-enemy');
     this.entityRenderer = new EntityRenderer();
     this.entityRenderer.setScene(this);
-    this.buildMap();
-    addTorchLighting(this, this.worldData!);
-    addLavaGlow(this, this.worldData!);
-    this.spawnPlayer();
+    
+    if (this.useChunkSystem && this.chunkManager) {
+      this.player = {
+        id: 'player', sprite: null as any, worldX: 0, worldY: 0,
+        hp: 100, maxHp: 100, attack: 25, attackRange: 1.5,
+        attackCooldown: 0.8, lastAttackTime: 0, isEnemy: false, alive: true,
+      };
+      this.setupChunkMap();
+      this.setupCamera();
+    } else {
+      this.buildMap();
+      addTorchLighting(this, this.worldData!);
+      addLavaGlow(this, this.worldData!);
+      this.spawnPlayer();
+    }
+    
     this.spawnEnemies();
-    this.setupCamera();
     this.setupInput();
     this.combatSystem = new CombatSystem(this, this.player, this.enemies);
     this.combatSystem.setOnKill((enemy) => this.scheduleRespawn(enemy));
@@ -119,45 +136,45 @@ export class GameScene extends Phaser.Scene {
 
     this.tileMap = new TileMap(MAP_SIZE, MAP_SIZE);
 
-    // Register tile textures with variants — original terrain
-    this.tileMap.setTileTexture(TILE_GRASS, 'tile-grass-0', 'tile-grass-1', 'tile-grass-2');
-    this.tileMap.setTileTexture(TILE_STONE, 'tile-stone-0', 'tile-stone-1', 'tile-stone-2');
+    // Register DCSS tile textures with variants
+    this.tileMap.setTileTexture(TILE_GRASS, 'dcss-grass-full', 'dcss-grass-north', 'dcss-grass-south');
+    this.tileMap.setTileTexture(TILE_STONE, 'dcss-floor_cobble_blood_1_new', 'dcss-floor_crypt_10', 'dcss-floor_limestone_0');
     this.tileMap.setTileTexture(TILE_WATER, 'tile-water');
     this.tileMap.setTileTexture(TILE_DEEP_WATER, 'tile-deep-water');
     this.tileMap.setTileTexture(TILE_SHALLOW_WATER, 'tile-shallow-water');
 
-    // Animated water/lava tiles
+    // Animated water/lava tiles (keep procedural)
     this.tileMap.setTileAnimation(TILE_WATER, 'anim-water', 'tile-water-f0');
     this.tileMap.setTileAnimation(TILE_DEEP_WATER, 'anim-deep-water', 'tile-deep-water-f0');
     this.tileMap.setTileAnimation(TILE_SHALLOW_WATER, 'anim-shallow-water', 'tile-shallow-water-f0');
-    this.tileMap.setTileTexture(TILE_GRASS_DARK, 'tile-grass-dark-0', 'tile-grass-dark-1', 'tile-grass-dark-2');
-    this.tileMap.setTileTexture(TILE_DIRT, 'tile-dirt-0', 'tile-dirt-1', 'tile-dirt-2');
+    this.tileMap.setTileTexture(TILE_GRASS_DARK, 'dcss-grass-full');
+    this.tileMap.setTileTexture(TILE_DIRT, 'dcss-floor_dirt_0_new', 'dcss-floor_dirt_1_new');
     this.tileMap.setTileTexture(TILE_LAVA, 'tile-lava');
     this.tileMap.setTileAnimation(TILE_LAVA, 'anim-lava', 'tile-lava-f0');
 
     // World map terrain
-    this.tileMap.setTileTexture(TILE_SAND, 'tile-sand-0', 'tile-sand-1', 'tile-sand-2');
+    this.tileMap.setTileTexture(TILE_SAND, 'dcss-floor_sand_1', 'dcss-floor_sand_2', 'dcss-floor_sand_3');
     this.tileMap.setTileTexture(TILE_MOUNTAIN, 'tile-mountain-0', 'tile-mountain-1', 'tile-mountain-2');
     this.tileMap.setTileTexture(TILE_MOUNTAIN_PATH, 'tile-mountain-path-0', 'tile-mountain-path-1', 'tile-mountain-path-2');
-    this.tileMap.setTileTexture(TILE_TOWN_ROAD, 'tile-town-road-0', 'tile-town-road-1', 'tile-town-road-2');
-    this.tileMap.setTileTexture(TILE_VILLAGE_DIRT, 'tile-village-dirt-0', 'tile-village-dirt-1', 'tile-village-dirt-2');
+    this.tileMap.setTileTexture(TILE_TOWN_ROAD, 'dcss-floor_limestone_1', 'dcss-floor_limestone_2');
+    this.tileMap.setTileTexture(TILE_VILLAGE_DIRT, 'dcss-floor_dirt_0_new');
     this.tileMap.setTileTexture(TILE_FARMLAND, 'tile-farmland-0', 'tile-farmland-1', 'tile-farmland-2');
-    this.tileMap.setTileTexture(TILE_MANOR_FLOOR, 'tile-manor-floor-0', 'tile-manor-floor-1', 'tile-manor-floor-2');
-    this.tileMap.setTileTexture(TILE_MANOR_GARDEN, 'tile-manor-garden-0', 'tile-manor-garden-1', 'tile-manor-garden-2');
+    this.tileMap.setTileTexture(TILE_MANOR_FLOOR, 'dcss-floor_limestone_0');
+    this.tileMap.setTileTexture(TILE_MANOR_GARDEN, 'dcss-grass-full');
 
-    // Obstacles
-    this.tileMap.setTileTexture(TILE_OBSTACLE_ROCK, 'obstacle-rock');
-    this.tileMap.setTileTexture(TILE_OBSTACLE_TREE, 'obstacle-tree');
-    this.tileMap.setTileTexture(TILE_WALL, 'tile-wall-0', 'tile-wall-1', 'tile-wall-2', 'tile-wall-3');
+    // Obstacles - use DCSS
+    this.tileMap.setTileTexture(TILE_OBSTACLE_ROCK, 'dcss-rock');
+    this.tileMap.setTileTexture(TILE_OBSTACLE_TREE, 'dcss-tree');
+    this.tileMap.setTileTexture(TILE_WALL, 'dcss-wall-brick_brown_0', 'dcss-wall-brick_brown_1', 'dcss-wall-brick_brown_2');
 
-    // Original decorations
+    // Decorations - use DCSS where available
     this.tileMap.setTileTexture(DECO_TORCH, 'deco-torch');
     this.tileMap.setTileAnimation(DECO_TORCH, 'anim-torch', 'deco-torch-f0');
-    this.tileMap.setTileTexture(DECO_CHEST, 'deco-chest');
+    this.tileMap.setTileTexture(DECO_CHEST, 'dcss-chest');
     this.tileMap.setTileTexture(DECO_TABLE, 'deco-table');
     this.tileMap.setTileTexture(DECO_BARREL, 'deco-barrel');
     this.tileMap.setTileTexture(DECO_BONES, 'deco-bones');
-    this.tileMap.setTileTexture(DECO_PILLAR, 'deco-pillar');
+    this.tileMap.setTileTexture(DECO_PILLAR, 'dcss-pillar');
 
     // World map decorations
     this.tileMap.setTileTexture(DECO_HOUSE, 'deco-house');
@@ -181,6 +198,79 @@ export class GameScene extends Phaser.Scene {
 
     // Wall shadows on adjacent floor tiles
     this.tileMap.renderWallShadows(this, 1);
+  }
+
+  private async setupChunkMap(): Promise<void> {
+    const generator = new ChunkWorldGenerator(12345);
+    this.chunkManager = new ChunkManager(generator);
+    this.chunkTileMap = new ChunkTileMap();
+    
+    this.registerTileTextures(this.chunkTileMap);
+    
+    const playerCX = worldToChunkCoord(this.player.worldX, this.player.worldY).cx;
+    const playerCY = worldToChunkCoord(this.player.worldX, this.player.worldY).cy;
+    
+    const preloadChunks = this.chunkManager.getChunksInRadius(playerCX, playerCY, CHUNK_VIEW_DISTANCE);
+    
+    for (const coord of preloadChunks) {
+      const chunk = await this.chunkManager.getChunk(coord.cx, coord.cy);
+      this.chunkTileMap.renderChunk(this, chunk);
+    }
+    
+    this.setupChunkUpdateLoop();
+  }
+
+  private registerTileTextures(tileMap: TileMap | ChunkTileMap): void {
+    tileMap.setTileTexture(TILE_GRASS, 'dcss-grass-full', 'dcss-grass-north', 'dcss-grass-south');
+    tileMap.setTileTexture(TILE_STONE, 'dcss-floor_cobble_blood_1_new', 'dcss-floor_crypt_10', 'dcss-floor_limestone_0');
+    tileMap.setTileTexture(TILE_WATER, 'tile-water');
+    tileMap.setTileTexture(TILE_DEEP_WATER, 'tile-deep-water');
+    tileMap.setTileTexture(TILE_SHALLOW_WATER, 'tile-shallow-water');
+    tileMap.setTileAnimation(TILE_WATER, 'anim-water', 'tile-water-f0');
+    tileMap.setTileAnimation(TILE_DEEP_WATER, 'anim-deep-water', 'tile-deep-water-f0');
+    tileMap.setTileAnimation(TILE_SHALLOW_WATER, 'anim-shallow-water', 'tile-shallow-water-f0');
+    tileMap.setTileTexture(TILE_GRASS_DARK, 'dcss-grass-full');
+    tileMap.setTileTexture(TILE_DIRT, 'dcss-floor_dirt_0_new', 'dcss-floor_dirt_1_new');
+    tileMap.setTileTexture(TILE_LAVA, 'tile-lava');
+    tileMap.setTileAnimation(TILE_LAVA, 'anim-lava', 'tile-lava-f0');
+    tileMap.setTileTexture(TILE_SAND, 'dcss-floor_sand_1', 'dcss-floor_sand_2', 'dcss-floor_sand_3');
+    tileMap.setTileTexture(TILE_MOUNTAIN, 'tile-mountain-0', 'tile-mountain-1', 'tile-mountain-2');
+    tileMap.setTileTexture(TILE_MOUNTAIN_PATH, 'tile-mountain-path-0', 'tile-mountain-path-1', 'tile-mountain-path-2');
+    tileMap.setTileTexture(TILE_OBSTACLE_ROCK, 'dcss-rock');
+    tileMap.setTileTexture(TILE_OBSTACLE_TREE, 'dcss-tree');
+    tileMap.setTileTexture(DECO_FLOWER, 'deco-flower');
+    tileMap.setTileTexture(DECO_BUSH, 'deco-bush');
+  }
+
+  private setupChunkUpdateLoop(): void {
+    this.time.addEvent({
+      delay: 500,
+      callback: () => this.updateChunks(),
+      loop: true,
+    });
+  }
+
+  private async updateChunks(): Promise<void> {
+    if (!this.chunkManager || !this.chunkTileMap) return;
+    
+    const playerCX = worldToChunkCoord(this.player.worldX, this.player.worldY).cx;
+    const playerCY = worldToChunkCoord(this.player.worldX, this.player.worldY).cy;
+    
+    const preloadChunks = this.chunkManager.getChunksInRadius(playerCX, playerCY, CHUNK_VIEW_DISTANCE);
+    const loadedCoords = this.chunkTileMap.getLoadedChunkCoords();
+    
+    for (const coord of preloadChunks) {
+      if (!this.chunkTileMap.isChunkLoaded(coord.cx, coord.cy)) {
+        const chunk = await this.chunkManager.getChunk(coord.cx, coord.cy);
+        this.chunkTileMap.renderChunk(this, chunk);
+      }
+    }
+    
+    const unloadCoords = this.chunkManager.getChunksToUnload(this.player.worldX, this.player.worldY);
+    for (const coord of unloadCoords) {
+      this.chunkTileMap.unloadChunk(this, coord.cx, coord.cy);
+      this.chunkManager.unloadChunk(coord.cx, coord.cy);
+    }
   }
 
   private spawnPlayer(): void {
@@ -214,7 +304,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemies(): void {
-    const spawns = this.worldData!.enemySpawns.slice(0, MAX_ENEMIES);
+    const spawns = this.useChunkSystem 
+      ? [] 
+      : this.worldData!.enemySpawns.slice(0, MAX_ENEMIES);
     spawns.forEach((pos) => this.createEnemy(pos.x, pos.y));
   }
 
@@ -288,6 +380,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private findRandomSpawnPosition(): { x: number; y: number } | null {
+    if (this.useChunkSystem) {
+      return null;
+    }
     const spawns = this.worldData!.enemySpawns;
     for (let attempt = 0; attempt < 20; attempt++) {
       const base = spawns[Math.floor(Math.random() * spawns.length)];
@@ -305,7 +400,9 @@ export class GameScene extends Phaser.Scene {
   private setupCamera(): void {
     this.cameraSystem = new CameraSystem(this);
 
-    const bounds = this.calcWorldBounds();
+    const bounds = this.useChunkSystem 
+      ? this.calcDynamicChunkBounds() 
+      : this.calcWorldBounds();
     this.cameraSystem.setBounds(
       bounds.minX - TILE_WIDTH,
       bounds.minY - TILE_WIDTH,
@@ -314,7 +411,41 @@ export class GameScene extends Phaser.Scene {
     );
 
     this.cameraSystem.follow(this.player.sprite);
-    this.cameraSystem.setZoom(0.5); // Zoom out more for large world map
+    this.cameraSystem.setZoom(0.5);
+  }
+
+  private calcDynamicChunkBounds(): { minX: number; maxX: number; minY: number; maxY: number } {
+    const loaded = this.chunkTileMap?.getLoadedChunkCoords() ?? [];
+    if (loaded.length === 0) {
+      return { minX: -500, maxX: 500, minY: -500, maxY: 500 };
+    }
+    
+    let minCX = Infinity, maxCX = -Infinity, minCY = Infinity, maxCY = -Infinity;
+    for (const { cx, cy } of loaded) {
+      minCX = Math.min(minCX, cx);
+      maxCX = Math.max(maxCX, cx);
+      minCY = Math.min(minCY, cy);
+      maxCY = Math.max(maxCY, cy);
+    }
+    
+    const worldMinX = minCX * CHUNK_SIZE;
+    const worldMinY = minCY * CHUNK_SIZE;
+    const worldMaxX = (maxCX + 1) * CHUNK_SIZE;
+    const worldMaxY = (maxCY + 1) * CHUNK_SIZE;
+    
+    const corners = [
+      worldToScreen(worldMinX, worldMinY),
+      worldToScreen(worldMaxX, worldMinY),
+      worldToScreen(worldMinX, worldMaxY),
+      worldToScreen(worldMaxX, worldMaxY),
+    ];
+    
+    return {
+      minX: Math.min(...corners.map(c => c.sx)),
+      maxX: Math.max(...corners.map(c => c.sx)),
+      minY: Math.min(...corners.map(c => c.sy)),
+      maxY: Math.max(...corners.map(c => c.sy)),
+    };
   }
 
   private setupInput(): void {
@@ -334,7 +465,7 @@ export class GameScene extends Phaser.Scene {
       const tx = Math.round(wx);
       const ty = Math.round(wy);
 
-      if (this.tileMap.isWalkable(tx, ty)) {
+      if (this.useChunkSystem && this.chunkTileMap && this.chunkTileMap.isWalkable(tx, ty)) {
         this.targetX = tx;
         this.targetY = ty;
         this.isMovingToTarget = true;
@@ -359,7 +490,11 @@ export class GameScene extends Phaser.Scene {
       const newX = this.player.worldX + dx;
       const newY = this.player.worldY + dy;
 
-      if (this.tileMap.isWalkable(Math.round(newX), Math.round(newY))) {
+      const canWalk = this.useChunkSystem && this.chunkTileMap
+        ? this.chunkTileMap.isWalkable(Math.round(newX), Math.round(newY))
+        : this.tileMap.isWalkable(Math.round(newX), Math.round(newY));
+
+      if (canWalk) {
         this.player.worldX = newX;
         this.player.worldY = newY;
       }
