@@ -1,5 +1,7 @@
 /** @entry Boot scene - preload DCSS sprites for tiles and characters */
 import Phaser from 'phaser';
+import { preloadLpcSheets } from '../assets/lpcSprites';
+import { preloadKenneyChar } from '../assets/kenneyIsoChar';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -49,11 +51,16 @@ export class BootScene extends Phaser.Scene {
 
     // Enemy - DCSS skeleton
     this.load.image('char-enemy', 'assets/dcss/monster/skeleton.png');
+
+    // LPC isometric character spritesheets (Clint Bellanger, CC0)
+    preloadLpcSheets(this);
+
+    // Kenney Isometric Miniature Dungeon characters (CC0)
+    preloadKenneyChar(this, 'Male');
   }
 
   create() {
     this.cameras.main.setBackgroundColor('#08070f');
-    this.createCharacterAnimations();
 
     const text = this.add.text(
       this.cameras.main.centerX,
@@ -63,48 +70,8 @@ export class BootScene extends Phaser.Scene {
     );
     text.setOrigin(0.5);
 
-    this.time.delayedCall(1000, () => {
+    this.time.delayedCall(500, () => {
       this.scene.start('GameScene');
-    });
-  }
-
-  private createCharacterAnimations(): void {
-    this.anims.create({
-      key: 'player-idle',
-      frames: [{ key: 'sheet-player', frame: 16 }],
-      frameRate: 1,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'player-walk',
-      frames: this.anims.generateFrameNumbers('sheet-player', { start: 16, end: 23 }),
-      frameRate: 8,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'player-attack',
-      frames: this.anims.generateFrameNumbers('sheet-player', { start: 24, end: 29 }),
-      frameRate: 12,
-      repeat: 0,
-    });
-
-    this.anims.create({
-      key: 'enemy-idle',
-      frames: [{ key: 'sheet-enemy', frame: 16 }],
-      frameRate: 1,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'enemy-walk',
-      frames: this.anims.generateFrameNumbers('sheet-enemy', { start: 16, end: 23 }),
-      frameRate: 8,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: 'enemy-attack',
-      frames: this.anims.generateFrameNumbers('sheet-enemy', { start: 24, end: 29 }),
-      frameRate: 12,
-      repeat: 0,
     });
   }
 }

@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import type { TileData } from '../types';
 import { TILE_WALL } from '../types';
-import { worldToScreen, calcDepth, TILE_WIDTH, TILE_HEIGHT } from './isometric';
+import { worldToScreen, calcDepth, TILE_WIDTH, TILE_HEIGHT, DEPTH_GROUND, DEPTH_OBSTACLE, DEPTH_DECO_TOP } from './isometric';
 import { TERRAIN_BLEND_COLORS, terrainGroup } from '../assets/textureGenerator';
 
 /** Rendering mode for a layer */
@@ -107,12 +107,14 @@ export class TileMap {
         obj.setScale(scale);
 
         if (mode === 'ground') {
+          // Ground tiles are always behind everything upright.
           obj.setOrigin(0.5, 0.40);
-          obj.setDepth(baseDepth + layerIndex * 0.1);
+          obj.setDepth(DEPTH_GROUND + baseDepth);
         } else if (mode === 'obstacle') {
+          // Obstacles (trees, rocks, walls) sort by isometric row — entities compete here.
           obj.setOrigin(0.5, 0.85);
-          obj.setDepth(baseDepth + layerIndex * 0.1);
-          // Cast shadow for obstacles (trees, rocks) — offset to lower-right for isometric light
+          obj.setDepth(DEPTH_OBSTACLE + baseDepth);
+          // Shadow sits just above ground
           const shadow = scene.add.ellipse(
             sx + TILE_WIDTH * 0.12,
             sy + TILE_HEIGHT * 0.15,
@@ -121,11 +123,13 @@ export class TileMap {
             0x000000,
             0.25,
           );
-          shadow.setDepth(baseDepth + layerIndex * 0.1 - 0.01);
+          shadow.setDepth(DEPTH_GROUND + baseDepth + 1);
           group.add(shadow);
         } else {
+          // Decorations (houses, torches, chests…) sort in the same obstacle band.
+          // Offset +0.5 so same-cell deco renders in front of obstacle at same row.
           obj.setOrigin(0.5, 0.75);
-          obj.setDepth(baseDepth + layerIndex * 0.1 + 0.05);
+          obj.setDepth(DEPTH_OBSTACLE + baseDepth + 0.5);
         }
         group.add(obj);
       }
@@ -192,7 +196,7 @@ export class TileMap {
           const scale = TILE_WIDTH / overlay.width;
           overlay.setScale(scale);
           overlay.setTint(neighborColor);
-          overlay.setDepth(calcDepth(x, y) + 0.02);
+          overlay.setDepth(DEPTH_GROUND + calcDepth(x, y) + 0.02);
         }
       }
     }
@@ -218,7 +222,7 @@ export class TileMap {
           shadow.setScale(TILE_WIDTH / shadow.width);
           shadow.setTint(0x000000);
           shadow.setAlpha(0.3);
-          shadow.setDepth(calcDepth(x + 1, y) + 0.01);
+          shadow.setDepth(DEPTH_GROUND + calcDepth(x + 1, y) + 0.01);
         }
 
         // Weaker shadow on SW neighbor (x, y+1)
@@ -229,7 +233,7 @@ export class TileMap {
           shadow.setScale(TILE_WIDTH / shadow.width);
           shadow.setTint(0x000000);
           shadow.setAlpha(0.2);
-          shadow.setDepth(calcDepth(x, y + 1) + 0.01);
+          shadow.setDepth(DEPTH_GROUND + calcDepth(x, y + 1) + 0.01);
         }
       }
     }

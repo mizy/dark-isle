@@ -101,8 +101,7 @@ function genGrassTile(scene: Phaser.Scene, key: string, seed: number, baseColor:
     drawDiamond(g, baseColor, strokeColor);
     const rand = seededRandom(seed);
 
-    // Ground color variation patches — organic undertone before blades
-    const groundTones = [0x3a5a3a, 0x2a4a2d, 0x445e3e, 0x324a35];
+    const groundTones = [0x5a9a48, 0x4a8a3d, 0x68a855, 0x52924a];
     for (let i = 0; i < 8; i++) {
       const px = rand() * TEX_W, py = rand() * TEX_H;
       if (!insideDiamond(px, py)) continue;
@@ -110,21 +109,19 @@ function genGrassTile(scene: Phaser.Scene, key: string, seed: number, baseColor:
       g.fillEllipse(px, py, 6 + rand() * 8, 3 + rand() * 4);
     }
 
-    // Dark shadow patches beneath grass clumps — gives depth before blades are drawn
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 10; i++) {
       const px = rand() * TEX_W, py = rand() * TEX_H;
       if (!insideDiamond(px, py)) continue;
-      g.fillStyle(0x1a2a1f, 0.35 + rand() * 0.25);
+      g.fillStyle(0x3a6a30, 0.3 + rand() * 0.2);
       g.fillCircle(px, py, 2 + rand() * 2);
     }
 
-    // Grass blades — short angled strokes growing "upward" in screen space
-    const bladeColors = [0x2d5235, 0x3a6642, 0x254830, 0x486e52, 0x1e3d28, 0x4a7a55, 0x366840, 0x5a8a5e];
+    const bladeColors = [0x5aaa48, 0x68b856, 0x4e9840, 0x72c460, 0x44903a, 0x7ecc68, 0x58b050, 0x86d470];
     for (let i = 0; i < 65; i++) {
       const bx = rand() * TEX_W, by = rand() * TEX_H;
       if (!insideDiamond(bx, by)) continue;
       const bladeLen = 2 + rand() * 4;
-      const lean = (rand() - 0.5) * 3; // wind lean
+      const lean = (rand() - 0.5) * 3;
       const tipX = bx + lean;
       const tipY = by - bladeLen;
       if (!insideDiamond(tipX, tipY)) continue;
@@ -135,7 +132,6 @@ function genGrassTile(scene: Phaser.Scene, key: string, seed: number, baseColor:
       g.strokePath();
     }
 
-    // Brighter blade tips — catch the light
     for (let i = 0; i < 22; i++) {
       const bx = rand() * TEX_W, by = rand() * TEX_H;
       if (!insideDiamond(bx, by)) continue;
@@ -143,11 +139,10 @@ function genGrassTile(scene: Phaser.Scene, key: string, seed: number, baseColor:
       const tipX = bx + (rand() - 0.5) * 1.5;
       const tipY = by - len;
       if (!insideDiamond(tipX, tipY)) continue;
-      g.lineStyle(1, 0x6d9d6d, 0.3 + rand() * 0.3);
+      g.lineStyle(1, 0x90e080, 0.3 + rand() * 0.3);
       g.beginPath(); g.moveTo(bx, by); g.lineTo(tipX, tipY); g.strokePath();
     }
 
-    // Clover-like ground cover patches (small clustered dots)
     for (let i = 0; i < 4; i++) {
       const cx2 = rand() * TEX_W, cy2 = rand() * TEX_H;
       if (!insideDiamond(cx2, cy2)) continue;
@@ -155,33 +150,30 @@ function genGrassTile(scene: Phaser.Scene, key: string, seed: number, baseColor:
         const angle = (j / 3) * Math.PI * 2 + rand() * 0.5;
         const dx = Math.cos(angle) * 1.5;
         const dy = Math.sin(angle) * 1.5;
-        g.fillStyle(0x3a6a3a, 0.4 + rand() * 0.2);
+        g.fillStyle(0x60b850, 0.4 + rand() * 0.2);
         g.fillCircle(cx2 + dx, cy2 + dy, 1);
       }
     }
 
-    // Tiny wildflower specks (rare color pops)
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const px = rand() * TEX_W, py = rand() * TEX_H;
       if (!insideDiamond(px, py)) continue;
-      const flowerColors = [0xcccc66, 0xaa88cc, 0xcc8866, 0xeeee88, 0xddaacc];
-      g.fillStyle(flowerColors[Math.floor(rand() * flowerColors.length)], 0.35 + rand() * 0.35);
-      g.fillPoint(px, py, 0.8 + rand() * 0.4);
+      const flowerColors = [0xffdd44, 0xee88bb, 0xff9955, 0xffee66, 0xffaadd];
+      g.fillStyle(flowerColors[Math.floor(rand() * flowerColors.length)], 0.5 + rand() * 0.4);
+      g.fillPoint(px, py, 1 + rand() * 0.5);
     }
 
-    // Scattered soil specks visible between blades
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 10; i++) {
       const px = rand() * TEX_W, py = rand() * TEX_H;
       if (!insideDiamond(px, py)) continue;
-      g.fillStyle(0x3a2e22, 0.25 + rand() * 0.25);
+      g.fillStyle(0x6a5a3a, 0.2 + rand() * 0.2);
       g.fillPoint(px, py, 0.8 + rand() * 0.5);
     }
 
-    // Dew highlights — tiny bright specks on blade tips (morning dew effect)
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       const px = rand() * TEX_W, py = rand() * TEX_H;
       if (!insideDiamond(px, py)) continue;
-      g.fillStyle(0xcceecc, 0.2 + rand() * 0.2);
+      g.fillStyle(0xddffcc, 0.25 + rand() * 0.2);
       g.fillPoint(px, py, 0.6);
     }
   });
@@ -357,9 +349,9 @@ function genLavaTile(scene: Phaser.Scene, key: string, phase = 0) {
 
 function genSandTile(scene: Phaser.Scene, key: string, seed: number) {
   generateAndSave(scene, key, TEX_W, TEX_H, (g) => {
-    drawDiamond(g, 0xd4b876, 0xb89e60);
+    drawDiamond(g, 0xe8d090, 0xd0b870);
     const rand = seededRandom(seed);
-    const sandColors = [0xc8a860, 0xdcc080, 0xbfa050, 0xe0c888, 0xb09448];
+    const sandColors = [0xe0c878, 0xf0d898, 0xd8c068, 0xf4e0a0, 0xccb458];
     for (let i = 0; i < 60; i++) {
       const px = rand() * TEX_W, py = rand() * TEX_H;
       if (!insideDiamond(px, py)) continue;
@@ -429,12 +421,11 @@ function genMountainPathTile(scene: Phaser.Scene, key: string, seed: number) {
 
 function genTownRoadTile(scene: Phaser.Scene, key: string, seed: number) {
   generateAndSave(scene, key, TEX_W, TEX_H, (g) => {
-    drawDiamond(g, 0x454040, 0x302c28);
+    drawDiamond(g, 0x9a9088, 0x807868);
     const rand = seededRandom(seed);
     const cx = TEX_W / 2, cy = TEX_H / 2;
 
-    // Regular brick seams — isometric grid, more prominent than stone
-    g.lineStyle(1, 0x282420, 0.9);
+    g.lineStyle(1, 0x706860, 0.7);
     for (let row = -3; row <= 3; row++) {
       const baseY = cy + row * 6;
       let started = false;
@@ -460,8 +451,7 @@ function genTownRoadTile(scene: Phaser.Scene, key: string, seed: number) {
       }
       if (started) g.strokePath();
     }
-    // Subtle color variation
-    const colors = [0x4a4540, 0x3e3a36, 0x504a44, 0x363230];
+    const colors = [0xa09888, 0x908070, 0xb0a898, 0x888070];
     for (let i = 0; i < 30; i++) {
       const px = rand() * TEX_W, py = rand() * TEX_H;
       if (!insideDiamond(px, py)) continue;
@@ -615,25 +605,21 @@ function genWallTile(scene: Phaser.Scene, key: string, seed: number) {
   generateAndSave(scene, key, wallW, wallH, (g) => {
     const rand = seededRandom(seed);
 
-    // Top face — dimly lit from above
-    g.fillStyle(0x46413a, 1);
+    g.fillStyle(0x9a9488, 1);
     g.beginPath();
     g.moveTo(24, 8); g.lineTo(44, 18); g.lineTo(24, 28); g.lineTo(4, 18);
     g.closePath(); g.fillPath();
 
-    // Top face stone slab lines
-    g.lineStyle(1, 0x3a3630, 0.5);
+    g.lineStyle(1, 0x807a70, 0.5);
     g.beginPath(); g.moveTo(14, 13); g.lineTo(34, 23); g.strokePath();
     g.beginPath(); g.moveTo(14, 18); g.lineTo(24, 13); g.strokePath();
 
-    // Left face — medium dark
-    g.fillStyle(0x2e2926, 1);
+    g.fillStyle(0x787068, 1);
     g.beginPath();
     g.moveTo(4, 18); g.lineTo(24, 28); g.lineTo(24, 56); g.lineTo(4, 46);
     g.closePath(); g.fillPath();
 
-    // Right face — darkest (shadow side)
-    g.fillStyle(0x1e1b18, 1);
+    g.fillStyle(0x605850, 1);
     g.beginPath();
     g.moveTo(24, 28); g.lineTo(44, 18); g.lineTo(44, 46); g.lineTo(24, 56);
     g.closePath(); g.fillPath();
@@ -756,30 +742,26 @@ function genRockObstacle(scene: Phaser.Scene) {
 
 function genTreeObstacle(scene: Phaser.Scene) {
   generateAndSave(scene, 'obstacle-tree', 32, 48, (g) => {
-    // Dark gnarled dungeon tree
-    g.fillStyle(0x3a2614, 1);
+    g.fillStyle(0x6b4226, 1);
     g.fillRect(13, 28, 6, 18);
-    // Twisted roots
-    g.lineStyle(1, 0x2a1c0c, 0.8);
+    g.lineStyle(1, 0x5a3418, 0.8);
     g.beginPath(); g.moveTo(13, 44); g.lineTo(8, 48); g.strokePath();
     g.beginPath(); g.moveTo(19, 44); g.lineTo(24, 48); g.strokePath();
-    // Dark foliage
-    g.fillStyle(0x1e4422, 1);
+    g.fillStyle(0x3a8a30, 1);
     g.beginPath(); g.moveTo(16, 2); g.lineTo(30, 18); g.lineTo(16, 30); g.lineTo(2, 18); g.closePath(); g.fillPath();
-    g.fillStyle(0x284e2e, 0.8);
+    g.fillStyle(0x50a848, 0.9);
     g.beginPath(); g.moveTo(16, 6); g.lineTo(24, 17); g.lineTo(16, 25); g.lineTo(8, 17); g.closePath(); g.fillPath();
     const rand = seededRandom(55);
-    const leafColors = [0x1a3e1e, 0x2a5030, 0x163418, 0x346038];
+    const leafColors = [0x3a9a30, 0x4aaa40, 0x2e8828, 0x58b850];
     for (let i = 0; i < 16; i++) {
       const px = 5 + rand() * 22, py = 6 + rand() * 20;
       g.fillStyle(leafColors[Math.floor(rand() * leafColors.length)], 0.5 + rand() * 0.4);
-      g.fillCircle(px, py, 1 + rand() * 1.5);
+      g.fillCircle(px, py, 1.5 + rand() * 1.5);
     }
-    // Occasional pale highlight leaf
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       const px = 8 + rand() * 16, py = 8 + rand() * 16;
-      g.fillStyle(0x3a7042, 0.3);
-      g.fillCircle(px, py, 0.8);
+      g.fillStyle(0x70cc60, 0.4);
+      g.fillCircle(px, py, 1);
     }
   });
 }
@@ -929,29 +911,34 @@ function genPillar(scene: Phaser.Scene) {
 
 function genHouse(scene: Phaser.Scene) {
   generateAndSave(scene, 'deco-house', 48, 64, (g) => {
-    // Roof — top face
-    g.fillStyle(0x8b4513, 1);
+    g.fillStyle(0xcc4422, 1);
     g.beginPath();
     g.moveTo(24, 4); g.lineTo(44, 14); g.lineTo(24, 24); g.lineTo(4, 14);
     g.closePath(); g.fillPath();
-    // Left wall
-    g.fillStyle(0xc8b890, 1);
+    g.fillStyle(0xaa3818, 1);
+    g.beginPath();
+    g.moveTo(14, 9); g.lineTo(34, 19); g.lineTo(24, 24); g.lineTo(4, 14);
+    g.closePath(); g.fillPath();
+    g.fillStyle(0xf0e4cc, 1);
     g.beginPath();
     g.moveTo(4, 14); g.lineTo(24, 24); g.lineTo(24, 52); g.lineTo(4, 42);
     g.closePath(); g.fillPath();
-    // Right wall
-    g.fillStyle(0xa89870, 1);
+    g.fillStyle(0xd8c8a8, 1);
     g.beginPath();
     g.moveTo(24, 24); g.lineTo(44, 14); g.lineTo(44, 42); g.lineTo(24, 52);
     g.closePath(); g.fillPath();
-    // Door on right wall
-    g.fillStyle(0x5a3a1a, 1);
+    g.fillStyle(0x6b4226, 1);
     g.fillRect(30, 36, 6, 14);
-    // Window on left wall
-    g.fillStyle(0x88bbdd, 0.7);
-    g.fillRect(10, 24, 5, 4);
-    // Outline
-    g.lineStyle(1, 0x3a2a1a, 0.8);
+    g.fillStyle(0xd4a840, 1);
+    g.fillRect(34, 42, 1, 2);
+    g.fillStyle(0x88ccee, 0.8);
+    g.fillRect(10, 24, 6, 5);
+    g.fillStyle(0x6b4226, 1);
+    g.fillRect(12, 24, 1, 5);
+    g.fillRect(10, 26, 6, 1);
+    g.fillStyle(0xffcc44, 0.3);
+    g.fillRect(10, 24, 6, 5);
+    g.lineStyle(1, 0x5a3a1a, 0.8);
     g.strokePoints([
       { x: 24, y: 4 }, { x: 44, y: 14 }, { x: 44, y: 42 },
       { x: 24, y: 52 }, { x: 4, y: 42 }, { x: 4, y: 14 }, { x: 24, y: 4 },
@@ -961,31 +948,29 @@ function genHouse(scene: Phaser.Scene) {
 
 function genShop(scene: Phaser.Scene) {
   generateAndSave(scene, 'deco-shop', 48, 64, (g) => {
-    // Roof
-    g.fillStyle(0x6a4020, 1);
+    g.fillStyle(0xb85028, 1);
     g.beginPath();
     g.moveTo(24, 4); g.lineTo(44, 14); g.lineTo(24, 24); g.lineTo(4, 14);
     g.closePath(); g.fillPath();
-    // Left wall
-    g.fillStyle(0xd0c0a0, 1);
+    g.fillStyle(0xe8d8b0, 1);
     g.beginPath();
     g.moveTo(4, 14); g.lineTo(24, 24); g.lineTo(24, 52); g.lineTo(4, 42);
     g.closePath(); g.fillPath();
-    // Right wall
-    g.fillStyle(0xb0a080, 1);
+    g.fillStyle(0xccb890, 1);
     g.beginPath();
     g.moveTo(24, 24); g.lineTo(44, 14); g.lineTo(44, 42); g.lineTo(24, 52);
     g.closePath(); g.fillPath();
-    // Shop sign — hanging board
-    g.fillStyle(0x5a3a10, 1);
+    g.fillStyle(0x7a5020, 1);
     g.fillRect(28, 20, 12, 6);
-    g.fillStyle(0xffcc00, 0.8);
-    g.fillCircle(34, 23, 2); // coin symbol
-    // Door
-    g.fillStyle(0x4a2a0a, 1);
+    g.fillStyle(0xffcc00, 0.9);
+    g.fillCircle(34, 23, 2);
+    g.fillStyle(0x5a3a10, 1);
     g.fillRect(10, 30, 6, 12);
-    // Outline
-    g.lineStyle(1, 0x3a2a1a, 0.8);
+    g.fillStyle(0xd4a840, 1);
+    g.fillRect(14, 36, 1, 2);
+    g.fillStyle(0x88ccee, 0.8);
+    g.fillRect(30, 30, 5, 4);
+    g.lineStyle(1, 0x5a3a1a, 0.8);
     g.strokePoints([
       { x: 24, y: 4 }, { x: 44, y: 14 }, { x: 44, y: 42 },
       { x: 24, y: 52 }, { x: 4, y: 42 }, { x: 4, y: 14 }, { x: 24, y: 4 },
@@ -1176,48 +1161,39 @@ function genCityWall(scene: Phaser.Scene) {
   const wallH = 72;
   generateAndSave(scene, 'deco-city-wall', wallW, wallH, (g) => {
     const rand = seededRandom(500);
-    // Top face — battlements
-    g.fillStyle(0x6a645a, 1);
+    g.fillStyle(0xb0a898, 1);
     g.beginPath();
     g.moveTo(24, 4); g.lineTo(44, 14); g.lineTo(24, 24); g.lineTo(4, 14);
     g.closePath(); g.fillPath();
-    // Left face
-    g.fillStyle(0x4e483e, 1);
+    g.fillStyle(0x90887a, 1);
     g.beginPath();
     g.moveTo(4, 14); g.lineTo(24, 24); g.lineTo(24, 62); g.lineTo(4, 52);
     g.closePath(); g.fillPath();
-    // Right face
-    g.fillStyle(0x38342c, 1);
+    g.fillStyle(0x78706a, 1);
     g.beginPath();
     g.moveTo(24, 24); g.lineTo(44, 14); g.lineTo(44, 52); g.lineTo(24, 62);
     g.closePath(); g.fillPath();
-    // Brick courses on left
-    g.lineStyle(1, 0x2a2620, 0.8);
+    g.lineStyle(1, 0x685e54, 0.7);
     for (let row = 0; row < 5; row++) {
       const y = 26 + row * 7;
       g.beginPath(); g.moveTo(4, y); g.lineTo(24, y + 10); g.strokePath();
     }
-    // Brick courses on right
     for (let row = 0; row < 5; row++) {
       const y = 26 + row * 7;
       g.beginPath(); g.moveTo(44, y); g.lineTo(24, y + 10); g.strokePath();
     }
-    // Battlement crenels on top
-    g.fillStyle(0x7a7468, 1);
+    g.fillStyle(0xc0b8a8, 1);
     g.fillRect(8, 6, 4, 6);
     g.fillRect(20, 8, 4, 6);
     g.fillRect(34, 6, 4, 6);
-    // Top highlight
-    g.lineStyle(1, 0x8a847a, 0.8);
+    g.lineStyle(1, 0xc8c0b0, 0.8);
     g.beginPath(); g.moveTo(4, 14); g.lineTo(24, 4); g.lineTo(44, 14); g.strokePath();
-    // Stone variation
     for (let i = 0; i < 20; i++) {
       const x = 5 + rand() * 38, y = 16 + rand() * 40;
-      g.fillStyle(0x5a5448, 0.3);
+      g.fillStyle(0xa09888, 0.3);
       g.fillPoint(x, y, 1);
     }
-    // Outline
-    g.lineStyle(1, 0x1a1814, 0.9);
+    g.lineStyle(1, 0x4a4438, 0.8);
     g.strokePoints([
       { x: 24, y: 4 }, { x: 44, y: 14 }, { x: 44, y: 52 },
       { x: 24, y: 62 }, { x: 4, y: 52 }, { x: 4, y: 14 }, { x: 24, y: 4 },
@@ -1225,31 +1201,239 @@ function genCityWall(scene: Phaser.Scene) {
   });
 }
 
-// ─── Characters ───
+// ─── Characters (multi-direction: down=front, up=back, side=profile) ───
 
-function generatePlayerCharacter(scene: Phaser.Scene) {
-  generateAndSave(scene, 'char-player', 24, 36, (g) => {
-    g.fillStyle(0x3060b0, 1); g.fillRect(6, 12, 12, 16);
-    g.fillStyle(0x4080d0, 1); g.fillRect(3, 12, 5, 6); g.fillRect(16, 12, 5, 6);
-    g.fillStyle(0x2a4a80, 1); g.fillRect(7, 28, 4, 8); g.fillRect(13, 28, 4, 8);
-    g.fillStyle(0xf0c090, 1); g.fillCircle(12, 8, 5);
-    g.fillStyle(0x4080d0, 1); g.fillRect(7, 2, 10, 4);
-    g.fillStyle(0x000000, 1); g.fillPoint(10, 8, 1.5); g.fillPoint(14, 8, 1.5);
-    g.lineStyle(1, 0x000000, 0.3); g.strokeRect(6, 12, 12, 16);
-  });
+function drawPlayerDown(g: Phaser.GameObjects.Graphics, legL: number, legR: number, armL: number, armR: number, sword: number) {
+  g.fillStyle(0x8b5a2b, 1);
+  g.fillRect(10 + legL, 36, 5, 8); g.fillRect(17 + legR, 36, 5, 8);
+  g.fillStyle(0x5a6678, 1);
+  g.fillRect(10 + Math.floor(legL * 0.5), 28, 5, 10);
+  g.fillRect(17 + Math.floor(legR * 0.5), 28, 5, 10);
+  g.fillStyle(0x4488cc, 1);
+  g.fillRect(8, 14, 16, 16);
+  g.fillStyle(0x3670b0, 1);
+  g.fillRect(8, 14, 2, 16); g.fillRect(22, 14, 2, 16);
+  g.fillStyle(0x8b6914, 1);
+  g.fillRect(8, 27, 16, 3);
+  g.fillStyle(0xddb040, 1);
+  g.fillRect(14, 27, 4, 3);
+  g.fillStyle(0x4488cc, 1);
+  g.fillRect(3, 16 + armL, 6, 7); g.fillRect(23, 16 + armR, 6, 7);
+  g.fillStyle(0xf0c898, 1);
+  g.fillRect(4, 23 + armL, 4, 4); g.fillRect(24, 23 + armR, 4, 4);
+  g.fillStyle(0xf0c898, 1); g.fillCircle(16, 8, 7);
+  g.fillStyle(0x5a3820, 1);
+  g.fillRect(9, 0, 14, 7); g.fillRect(9, 3, 2, 6); g.fillRect(21, 3, 2, 6);
+  g.fillStyle(0x222222, 1);
+  g.fillRect(12, 7, 2, 3); g.fillRect(18, 7, 2, 3);
+  g.fillStyle(0xffffff, 0.8);
+  g.fillRect(12, 7, 1, 1); g.fillRect(18, 7, 1, 1);
+  g.fillStyle(0xd0a070, 1);
+  g.fillRect(14, 13, 4, 1);
+  if (sword > 0) {
+    const sy = (sword - 2) * 6;
+    g.fillStyle(0x8a7040, 1); g.fillRect(27, 12 + sy, 3, 5);
+    g.fillStyle(0xcccccc, 1); g.fillRect(28, 2 + sy, 2, 14);
+    g.fillStyle(0xeeeeee, 0.6); g.fillRect(28, 5 + sy, 1, 6);
+  }
 }
 
-function generateEnemyCharacter(scene: Phaser.Scene) {
-  generateAndSave(scene, 'char-enemy', 24, 36, (g) => {
-    g.fillStyle(0xc04040, 1); g.fillRect(7, 14, 10, 12);
-    g.lineStyle(1, 0x802020, 0.7);
-    for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(8, 16 + i * 3); g.lineTo(16, 16 + i * 3); g.strokePath(); }
-    g.fillStyle(0xd0d0b0, 1); g.fillRect(8, 26, 3, 10); g.fillRect(13, 26, 3, 10);
-    g.fillStyle(0xe0e0c0, 1); g.fillCircle(12, 9, 6);
-    g.fillStyle(0x200000, 1); g.fillCircle(10, 8, 2); g.fillCircle(14, 8, 2);
-    g.fillStyle(0xff2020, 1); g.fillPoint(10, 8, 1.5); g.fillPoint(14, 8, 1.5);
-    g.fillStyle(0xd0d0b0, 1); g.fillRect(9, 12, 6, 2);
-  });
+function drawPlayerUp(g: Phaser.GameObjects.Graphics, legL: number, legR: number, armL: number, armR: number) {
+  g.fillStyle(0x8b5a2b, 1);
+  g.fillRect(10 + legL, 36, 5, 8); g.fillRect(17 + legR, 36, 5, 8);
+  g.fillStyle(0x5a6678, 1);
+  g.fillRect(10 + Math.floor(legL * 0.5), 28, 5, 10);
+  g.fillRect(17 + Math.floor(legR * 0.5), 28, 5, 10);
+  g.fillStyle(0x4488cc, 1);
+  g.fillRect(8, 14, 16, 16);
+  g.fillStyle(0x3670b0, 1);
+  g.fillRect(8, 14, 2, 16); g.fillRect(22, 14, 2, 16);
+  g.fillStyle(0x3670b0, 1);
+  g.fillRect(15, 16, 2, 12);
+  g.fillStyle(0x8b6914, 1);
+  g.fillRect(8, 27, 16, 3);
+  g.fillStyle(0x4488cc, 1);
+  g.fillRect(3, 16 + armL, 6, 7); g.fillRect(23, 16 + armR, 6, 7);
+  g.fillStyle(0xf0c898, 1);
+  g.fillRect(4, 23 + armL, 4, 4); g.fillRect(24, 23 + armR, 4, 4);
+  g.fillStyle(0xf0c898, 1); g.fillCircle(16, 8, 7);
+  g.fillStyle(0x5a3820, 1);
+  g.fillRect(9, 0, 14, 10); g.fillRect(9, 3, 2, 8); g.fillRect(21, 3, 2, 8);
+  g.fillStyle(0xf0c898, 1);
+  g.fillRect(9, 6, 2, 3); g.fillRect(21, 6, 2, 3);
+}
+
+function drawPlayerSide(g: Phaser.GameObjects.Graphics, legF: number, legB: number, armF: number, armB: number, sword: number) {
+  g.fillStyle(0x4a5568, 1);
+  g.fillRect(14 + legB, 36, 5, 8);
+  g.fillStyle(0x4e5a6a, 1);
+  g.fillRect(14 + Math.floor(legB * 0.5), 28, 5, 10);
+  g.fillStyle(0x8b5a2b, 1);
+  g.fillRect(12 + legF, 36, 5, 8);
+  g.fillStyle(0x5a6678, 1);
+  g.fillRect(12 + Math.floor(legF * 0.5), 28, 5, 10);
+  g.fillStyle(0x3670b0, 1);
+  g.fillRect(13, 16 + armB, 6, 7);
+  g.fillStyle(0xe0b880, 1);
+  g.fillRect(14, 23 + armB, 4, 4);
+  g.fillStyle(0x4488cc, 1);
+  g.fillRect(10, 14, 12, 16);
+  g.fillStyle(0x3670b0, 1);
+  g.fillRect(10, 14, 2, 16);
+  g.fillStyle(0x8b6914, 1);
+  g.fillRect(10, 27, 12, 3);
+  g.fillStyle(0xddb040, 1);
+  g.fillRect(10, 28, 3, 2);
+  g.fillStyle(0x4488cc, 1);
+  g.fillRect(18, 16 + armF, 6, 7);
+  g.fillStyle(0xf0c898, 1);
+  g.fillRect(19, 23 + armF, 4, 4);
+  g.fillStyle(0xf0c898, 1); g.fillCircle(16, 8, 7);
+  g.fillStyle(0x5a3820, 1);
+  g.fillRect(9, 0, 10, 7); g.fillRect(9, 3, 3, 6);
+  g.fillStyle(0x222222, 1);
+  g.fillRect(19, 7, 2, 3);
+  g.fillStyle(0xffffff, 0.8);
+  g.fillRect(19, 7, 1, 1);
+  g.fillStyle(0xe0b880, 1);
+  g.fillRect(11, 6, 2, 4);
+  g.fillStyle(0xe0b080, 1);
+  g.fillRect(22, 8, 2, 2);
+  if (sword > 0) {
+    const sy = (sword - 2) * 6;
+    g.fillStyle(0x8a7040, 1); g.fillRect(22, 12 + sy, 3, 5);
+    g.fillStyle(0xcccccc, 1); g.fillRect(23, 2 + sy, 2, 14);
+    g.fillStyle(0xeeeeee, 0.6); g.fillRect(23, 5 + sy, 1, 6);
+  }
+}
+
+function generatePlayerFrames(scene: Phaser.Scene) {
+  const W = 32, H = 48;
+  const dirs: Array<{ tag: string; fn: (...a: any[]) => void; hasSword: boolean }> = [
+    { tag: 'down', fn: drawPlayerDown, hasSword: true },
+    { tag: 'up', fn: drawPlayerUp, hasSword: false },
+    { tag: 'side', fn: drawPlayerSide, hasSword: true },
+  ];
+  for (const { tag, fn, hasSword } of dirs) {
+    const s = hasSword;
+    generateAndSave(scene, `char-player-${tag}-idle-0`, W, H, (g) => fn(g, 0, 0, 0, 0, ...(s ? [0] : [])));
+    generateAndSave(scene, `char-player-${tag}-idle-1`, W, H, (g) => fn(g, 0, 0, 0, -1, ...(s ? [0] : [])));
+    generateAndSave(scene, `char-player-${tag}-walk-0`, W, H, (g) => fn(g, -2, 2, -1, 1, ...(s ? [0] : [])));
+    generateAndSave(scene, `char-player-${tag}-walk-1`, W, H, (g) => fn(g, 0, 0, 0, 0, ...(s ? [0] : [])));
+    generateAndSave(scene, `char-player-${tag}-walk-2`, W, H, (g) => fn(g, 2, -2, 1, -1, ...(s ? [0] : [])));
+    generateAndSave(scene, `char-player-${tag}-walk-3`, W, H, (g) => fn(g, 0, 0, 0, 0, ...(s ? [0] : [])));
+    generateAndSave(scene, `char-player-${tag}-attack-0`, W, H, (g) => fn(g, 0, 0, 0, -4, ...(s ? [1] : [])));
+    generateAndSave(scene, `char-player-${tag}-attack-1`, W, H, (g) => fn(g, 0, 0, 0, 2, ...(s ? [2] : [])));
+    generateAndSave(scene, `char-player-${tag}-attack-2`, W, H, (g) => fn(g, 0, 0, 0, 4, ...(s ? [3] : [])));
+  }
+}
+
+function drawEnemyDown(g: Phaser.GameObjects.Graphics, legL: number, legR: number, armL: number, armR: number) {
+  g.fillStyle(0x4a3018, 1);
+  g.fillRect(10 + legL, 36, 5, 8); g.fillRect(17 + legR, 36, 5, 8);
+  g.fillStyle(0xd8d0a8, 1);
+  g.fillRect(11 + Math.floor(legL * 0.5), 28, 4, 10);
+  g.fillRect(18 + Math.floor(legR * 0.5), 28, 4, 10);
+  g.fillStyle(0xcc3333, 1);
+  g.fillRect(8, 14, 16, 14);
+  g.fillStyle(0x992222, 1);
+  g.fillRect(8, 14, 2, 14); g.fillRect(22, 14, 2, 14);
+  g.fillStyle(0xaa2828, 1);
+  g.fillRect(10, 18, 12, 2); g.fillRect(10, 23, 12, 2);
+  g.fillStyle(0xcc3333, 1);
+  g.fillRect(3, 16 + armL, 6, 6); g.fillRect(23, 16 + armR, 6, 6);
+  g.fillStyle(0xd8d0a8, 1);
+  g.fillRect(4, 22 + armL, 4, 4); g.fillRect(24, 22 + armR, 4, 4);
+  g.fillStyle(0xe8e0c0, 1); g.fillCircle(16, 8, 7);
+  g.fillStyle(0x180000, 1);
+  g.fillRect(11, 5, 4, 5); g.fillRect(17, 5, 4, 5);
+  g.fillStyle(0xff2020, 0.9);
+  g.fillRect(12, 6, 2, 3); g.fillRect(18, 6, 2, 3);
+  g.fillStyle(0x180000, 1);
+  g.fillRect(15, 11, 2, 2);
+  g.fillStyle(0xd8d0a8, 1);
+  g.fillRect(12, 13, 8, 2);
+  g.fillStyle(0x180000, 0.7);
+  g.fillRect(13, 13, 1, 2); g.fillRect(16, 13, 1, 2); g.fillRect(19, 13, 1, 2);
+}
+
+function drawEnemyUp(g: Phaser.GameObjects.Graphics, legL: number, legR: number, armL: number, armR: number) {
+  g.fillStyle(0x4a3018, 1);
+  g.fillRect(10 + legL, 36, 5, 8); g.fillRect(17 + legR, 36, 5, 8);
+  g.fillStyle(0xd8d0a8, 1);
+  g.fillRect(11 + Math.floor(legL * 0.5), 28, 4, 10);
+  g.fillRect(18 + Math.floor(legR * 0.5), 28, 4, 10);
+  g.fillStyle(0xcc3333, 1);
+  g.fillRect(8, 14, 16, 14);
+  g.fillStyle(0x992222, 1);
+  g.fillRect(8, 14, 2, 14); g.fillRect(22, 14, 2, 14);
+  g.fillStyle(0x772020, 1);
+  g.fillRect(15, 16, 2, 10);
+  g.fillStyle(0xcc3333, 1);
+  g.fillRect(3, 16 + armL, 6, 6); g.fillRect(23, 16 + armR, 6, 6);
+  g.fillStyle(0xd8d0a8, 1);
+  g.fillRect(4, 22 + armL, 4, 4); g.fillRect(24, 22 + armR, 4, 4);
+  g.fillStyle(0xe8e0c0, 1); g.fillCircle(16, 8, 7);
+  g.fillStyle(0xc8c0a0, 1);
+  g.fillRect(11, 3, 10, 8);
+  g.fillStyle(0x998870, 1);
+  g.fillRect(14, 2, 2, 6);
+}
+
+function drawEnemySide(g: Phaser.GameObjects.Graphics, legF: number, legB: number, armF: number, armB: number) {
+  g.fillStyle(0x3a2010, 1);
+  g.fillRect(14 + legB, 36, 5, 8);
+  g.fillStyle(0xc0b890, 1);
+  g.fillRect(14 + Math.floor(legB * 0.5), 28, 4, 10);
+  g.fillStyle(0x4a3018, 1);
+  g.fillRect(12 + legF, 36, 5, 8);
+  g.fillStyle(0xd8d0a8, 1);
+  g.fillRect(12 + Math.floor(legF * 0.5), 28, 4, 10);
+  g.fillStyle(0x992222, 1);
+  g.fillRect(13, 16 + armB, 6, 6);
+  g.fillStyle(0xc0b890, 1);
+  g.fillRect(14, 22 + armB, 4, 4);
+  g.fillStyle(0xcc3333, 1);
+  g.fillRect(10, 14, 12, 14);
+  g.fillStyle(0x992222, 1);
+  g.fillRect(10, 14, 2, 14);
+  g.fillStyle(0xaa2828, 1);
+  g.fillRect(12, 18, 8, 2);
+  g.fillStyle(0xcc3333, 1);
+  g.fillRect(18, 16 + armF, 6, 6);
+  g.fillStyle(0xd8d0a8, 1);
+  g.fillRect(19, 22 + armF, 4, 4);
+  g.fillStyle(0xe8e0c0, 1); g.fillCircle(16, 8, 7);
+  g.fillStyle(0x180000, 1);
+  g.fillRect(18, 5, 4, 5);
+  g.fillStyle(0xff2020, 0.9);
+  g.fillRect(19, 6, 2, 3);
+  g.fillStyle(0xd8d0a8, 1);
+  g.fillRect(16, 12, 6, 3);
+  g.fillStyle(0x180000, 0.7);
+  g.fillRect(17, 12, 1, 2); g.fillRect(19, 12, 1, 2);
+  g.fillStyle(0x180000, 1);
+  g.fillRect(21, 9, 2, 2);
+}
+
+function generateEnemyFrames(scene: Phaser.Scene) {
+  const W = 32, H = 48;
+  const dirs: Array<{ tag: string; fn: (g: Phaser.GameObjects.Graphics, a: number, b: number, c: number, d: number) => void }> = [
+    { tag: 'down', fn: drawEnemyDown },
+    { tag: 'up', fn: drawEnemyUp },
+    { tag: 'side', fn: drawEnemySide },
+  ];
+  for (const { tag, fn } of dirs) {
+    generateAndSave(scene, `char-enemy-${tag}-idle-0`, W, H, (g) => fn(g, 0, 0, 0, 0));
+    generateAndSave(scene, `char-enemy-${tag}-idle-1`, W, H, (g) => fn(g, 0, 0, 0, -1));
+    generateAndSave(scene, `char-enemy-${tag}-walk-0`, W, H, (g) => fn(g, -2, 2, -1, 1));
+    generateAndSave(scene, `char-enemy-${tag}-walk-1`, W, H, (g) => fn(g, 0, 0, 0, 0));
+    generateAndSave(scene, `char-enemy-${tag}-walk-2`, W, H, (g) => fn(g, 2, -2, 1, -1));
+    generateAndSave(scene, `char-enemy-${tag}-walk-3`, W, H, (g) => fn(g, 0, 0, 0, 0));
+    generateAndSave(scene, `char-enemy-${tag}-attack-0`, W, H, (g) => fn(g, 0, 0, 0, -4));
+    generateAndSave(scene, `char-enemy-${tag}-attack-1`, W, H, (g) => fn(g, 0, 0, 0, 2));
+    generateAndSave(scene, `char-enemy-${tag}-attack-2`, W, H, (g) => fn(g, 0, 0, 0, 4));
+  }
 }
 
 function generateAttackEffect(scene: Phaser.Scene) {
@@ -1367,22 +1551,22 @@ function genLavaGlow(scene: Phaser.Scene) {
 
 /** Terrain base colors for edge blending — exported for tileMap */
 export const TERRAIN_BLEND_COLORS: Record<number, number> = {
-  0: 0x4a7c59,   // TILE_GRASS
-  1: 0x252320,   // TILE_STONE
-  2: 0x3a6ea5,   // TILE_WATER
-  6: 0x1a3e75,   // TILE_DEEP_WATER
-  7: 0x5a9ec5,   // TILE_SHALLOW_WATER
-  8: 0x3a6049,   // TILE_GRASS_DARK
-  9: 0x3a2e22,   // TILE_DIRT
+  0: 0x7ec850,   // TILE_GRASS
+  1: 0x8a8478,   // TILE_STONE
+  2: 0x4a8ec8,   // TILE_WATER
+  6: 0x2a5e98,   // TILE_DEEP_WATER
+  7: 0x6abee8,   // TILE_SHALLOW_WATER
+  8: 0x5aA048,   // TILE_GRASS_DARK
+  9: 0x6a5a3a,   // TILE_DIRT
   10: 0x3a1200,  // TILE_LAVA
-  11: 0xd4b876,  // TILE_SAND
-  12: 0x5a5550,  // TILE_MOUNTAIN
-  13: 0x7a7068,  // TILE_MOUNTAIN_PATH
-  14: 0x454040,  // TILE_TOWN_ROAD
-  15: 0x3a2e22,  // TILE_VILLAGE_DIRT
-  16: 0x3e2e1a,  // TILE_FARMLAND
-  17: 0x8a8480,  // TILE_MANOR_FLOOR
-  18: 0x5a9a60,  // TILE_MANOR_GARDEN
+  11: 0xe8d090,  // TILE_SAND
+  12: 0x7a7568,  // TILE_MOUNTAIN
+  13: 0x9a9080,  // TILE_MOUNTAIN_PATH
+  14: 0x8a8070,  // TILE_TOWN_ROAD
+  15: 0x6a5a3a,  // TILE_VILLAGE_DIRT
+  16: 0x5e4e2a,  // TILE_FARMLAND
+  17: 0xaaa498,  // TILE_MANOR_FLOOR
+  18: 0x6aba68,  // TILE_MANOR_GARDEN
 };
 
 /** Terrain group IDs — same group = no edge transition needed */
@@ -1400,21 +1584,21 @@ export function terrainGroup(type: number): number {
 /** Generate all procedural textures */
 export function generateTextures(scene: Phaser.Scene): void {
   // Ground tiles with variants
-  genGrassTile(scene, 'tile-grass-0', 42, 0x4a7c59, 0x3d6b4a);
-  genGrassTile(scene, 'tile-grass-1', 137, 0x4a7c59, 0x3d6b4a);
-  genGrassTile(scene, 'tile-grass-2', 281, 0x4a7c59, 0x3d6b4a);
+  genGrassTile(scene, 'tile-grass-0', 42, 0x7ec850, 0x6ab840);
+  genGrassTile(scene, 'tile-grass-1', 137, 0x7ec850, 0x6ab840);
+  genGrassTile(scene, 'tile-grass-2', 281, 0x7ec850, 0x6ab840);
 
   genStoneTile(scene, 'tile-stone-0', 123);
   genStoneTile(scene, 'tile-stone-1', 456);
   genStoneTile(scene, 'tile-stone-2', 789);
 
-  genWaterTile(scene, 'tile-water', 77, 0x3a6ea5, 0x2d5a8a, 0x6aade0);
-  genWaterTile(scene, 'tile-deep-water', 33, 0x1a3e75, 0x0d2a5a, 0x3a7ab0);
-  genWaterTile(scene, 'tile-shallow-water', 55, 0x5a9ec5, 0x4d8aaa, 0x8acce0);
+  genWaterTile(scene, 'tile-water', 77, 0x4a8ec8, 0x3a7ab0, 0x7ac0ee);
+  genWaterTile(scene, 'tile-deep-water', 33, 0x2a5e98, 0x1a4a78, 0x4a90cc);
+  genWaterTile(scene, 'tile-shallow-water', 55, 0x6abee8, 0x5aaad0, 0x9adcf8);
 
-  genGrassTile(scene, 'tile-grass-dark-0', 91, 0x3a6049, 0x2d4f3a);
-  genGrassTile(scene, 'tile-grass-dark-1', 192, 0x3a6049, 0x2d4f3a);
-  genGrassTile(scene, 'tile-grass-dark-2', 303, 0x3a6049, 0x2d4f3a);
+  genGrassTile(scene, 'tile-grass-dark-0', 91, 0x5aA048, 0x4a903a);
+  genGrassTile(scene, 'tile-grass-dark-1', 192, 0x5aA048, 0x4a903a);
+  genGrassTile(scene, 'tile-grass-dark-2', 303, 0x5aA048, 0x4a903a);
 
   genDirtTile(scene, 'tile-dirt-0', 111);
   genDirtTile(scene, 'tile-dirt-1', 222);
@@ -1425,9 +1609,9 @@ export function generateTextures(scene: Phaser.Scene): void {
   // Animated water/lava frames (4 frames per type for ripple/flow animation)
   for (let f = 0; f < 4; f++) {
     const p = f * Math.PI / 2;
-    genWaterTile(scene, `tile-water-f${f}`, 77, 0x3a6ea5, 0x2d5a8a, 0x6aade0, p);
-    genWaterTile(scene, `tile-deep-water-f${f}`, 33, 0x1a3e75, 0x0d2a5a, 0x3a7ab0, p);
-    genWaterTile(scene, `tile-shallow-water-f${f}`, 55, 0x5a9ec5, 0x4d8aaa, 0x8acce0, p);
+    genWaterTile(scene, `tile-water-f${f}`, 77, 0x4a8ec8, 0x3a7ab0, 0x7ac0ee, p);
+    genWaterTile(scene, `tile-deep-water-f${f}`, 33, 0x2a5e98, 0x1a4a78, 0x4a90cc, p);
+    genWaterTile(scene, `tile-shallow-water-f${f}`, 55, 0x6abee8, 0x5aaad0, 0x9adcf8, p);
     genLavaTile(scene, `tile-lava-f${f}`, p);
   }
 
@@ -1508,7 +1692,7 @@ export function generateTextures(scene: Phaser.Scene): void {
   genLavaGlow(scene);
 
   // Characters & effects
-  generatePlayerCharacter(scene);
-  generateEnemyCharacter(scene);
+  generatePlayerFrames(scene);
+  generateEnemyFrames(scene);
   generateAttackEffect(scene);
 }

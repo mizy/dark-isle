@@ -108,11 +108,7 @@ export class CombatSystem {
     this.scene.time.delayedCall(100, () => {
       if (!target.alive) return;
       // Restore enemy tint, clear player tint
-      if (target.isEnemy) {
-        target.sprite.setTint(0xff8888);
-      } else {
-        target.sprite.clearTint();
-      }
+      target.sprite.clearTint();
     });
 
     this.spawnDamageText(target, amount);
