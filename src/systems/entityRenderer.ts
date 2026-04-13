@@ -2,29 +2,93 @@
 
 import Phaser from 'phaser';
 import type { Entity, GameEntity } from '../types';
-import { calcDepth } from './isometric';
+import { calcDepth, DEPTH_OBSTACLE } from './isometric';
+import { movementToLpcDir } from '../assets/lpcSprites';
+import type { LpcDir } from '../assets/lpcSprites';
+import { movementToKenneyDir, kenneyAnimKey } from '../assets/kenneyIsoChar';
+import type { KenneyDir } from '../assets/kenneyIsoChar';
 
-/** Small offset so entities render above ground tiles but interleave correctly with obstacles */
-const ENTITY_DEPTH_OFFSET = 0.5;
+/**
+ * Within the DEPTH_OBSTACLE band, entities sit at +0.25 relative to the row base,
+ * putting them in front of same-cell obstacles but behind obstacles one row ahead.
+ * This mirrors how a character standing on a cell should be "in front of" that
+ * cell's obstacle but "behind" the obstacle of the next cell toward the camera.
+ */
+const ENTITY_DEPTH_OFFSET = 0.25;
+
+/** Pixels to lift entity sprites above the tile center so feet sit on the surface */
+const ENTITY_Y_LIFT = 0;
 
 /** Enemy HP bar constants */
-const HP_BAR_W = 28;
-const HP_BAR_H = 3;
-const HP_BAR_OFFSET_Y = -30;
+const HP_BAR_W = 38;
+const HP_BAR_H = 4;
+const HP_BAR_OFFSET_Y = -70;
 
 export type AnimState = 'idle' | 'walk' | 'attack';
+/** 3-dir for procedural sprites */
+export type FaceDir = 'down' | 'up' | 'side';
 
 interface AnimEntity extends Entity {
-  /** Animation prefix: 'player' or 'enemy' */
+  /** Animation prefix: 'player' | 'enemy' | 'player-lpc' | 'enemy-lpc' | 'player-kenney' | 'enemy-kenney' */
   animPrefix?: string;
-  /** Current animation state */
   animState?: AnimState;
-  /** Previous world position for movement detection */
+  /** 3-dir for procedural mode */
+  faceDir?: FaceDir;
+  /** 8-dir for LPC mode */
+  lpcDir?: LpcDir;
+  /** 8-dir for Kenney mode */
+  kenneyDir?: KenneyDir;
   prevWorldX?: number;
   prevWorldY?: number;
-  /** Floating HP bar graphics (enemies only) */
   hpBarBg?: Phaser.GameObjects.Graphics;
   hpBarFill?: Phaser.GameObjects.Graphics;
+}
+
+/** Whether this prefix uses the LPC 8-direction system */
+function isLpcPrefix(prefix: string): boolean {
+  return prefix.endsWith('-lpc');
+}
+
+/** Whether this prefix uses the Kenney 8-direction system */
+function isKenneyPrefix(prefix: string): boolean {
+  return prefix.endsWith('-kenney');
+}
+
+/** Kenney anim key for a given prefix, direction, and state */
+function kenneyAnimKeyFor(prefix: string, dir: KenneyDir, state: AnimState | 'idle'): string {
+  // Both player and enemy use the same Male variant
+  return kenneyAnimKey('Male', dir, state);
+}
+
+/** Strip '-lpc' suffix to get the base id (e.g. 'player-lpc' → 'player') */
+function lpcId(prefix: string): string {
+  return prefix.replace(/-lpc$/, '');
+}
+
+/** 3-dir procedural anim key */
+function procAnimKey(prefix: string, dir: FaceDir, state: AnimState): string {
+  return `${prefix}-${dir}-${state}`;
+}
+
+/** 8-dir LPC composited anim key for player; raw sheet anim for enemy */
+function lpcAnimKeyFor(prefix: string, dir: LpcDir, state: AnimState | 'idle'): string {
+  const id = lpcId(prefix);
+  // Player uses compositor keys; enemies use raw sheet keys
+  if (id === 'player') return `comp:player:${dir}:${state}`;
+  // Enemies: raw skeleton sheet
+  return `lpc:skeleton:${dir}:${state}`;
+}
+
+/**
+ * Determine procedural 3-dir facing from world-space delta.
+ */
+function calcFaceDir(dx: number, dy: number): { dir: FaceDir; flipX: boolean } {
+  const sdx = dx - dy;
+  const sdy = dx + dy;
+  if (Math.abs(sdy) >= Math.abs(sdx)) {
+    return { dir: sdy >= 0 ? 'down' : 'up', flipX: false };
+  }
+  return { dir: 'side', flipX: sdx < 0 };
 }
 
 /** Play attack animation on an entity sprite, then return to idle */
@@ -35,13 +99,35 @@ export function playAttackAnim(entity: Entity): void {
   if (!(sprite instanceof Phaser.GameObjects.Sprite)) return;
 
   e.animState = 'attack';
-  sprite.play(`${e.animPrefix}-attack`);
-  sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-    if (e.animState === 'attack') {
-      e.animState = 'idle';
-      sprite.play(`${e.animPrefix}-idle`);
-    }
-  });
+
+  if (isKenneyPrefix(e.animPrefix)) {
+    const dir = e.kenneyDir ?? 'se';
+    sprite.play(kenneyAnimKeyFor(e.animPrefix, dir, 'attack'));
+    sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      if (e.animState === 'attack') {
+        e.animState = 'idle';
+        sprite.play(kenneyAnimKeyFor(e.animPrefix!, e.kenneyDir ?? 'se', 'idle'));
+      }
+    });
+  } else if (isLpcPrefix(e.animPrefix)) {
+    const dir = e.lpcDir ?? 'se';
+    sprite.play(lpcAnimKeyFor(e.animPrefix, dir, 'attack'));
+    sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      if (e.animState === 'attack') {
+        e.animState = 'idle';
+        sprite.play(lpcAnimKeyFor(e.animPrefix!, e.lpcDir ?? 'se', 'idle'));
+      }
+    });
+  } else {
+    const dir = e.faceDir ?? 'down';
+    sprite.play(procAnimKey(e.animPrefix, dir, 'attack'));
+    sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      if (e.animState === 'attack') {
+        e.animState = 'idle';
+        sprite.play(procAnimKey(e.animPrefix!, e.faceDir ?? 'down', 'idle'));
+      }
+    });
+  }
 }
 
 export class EntityRenderer {
@@ -49,20 +135,20 @@ export class EntityRenderer {
 
   private scene: Phaser.Scene | null = null;
 
-  /** Set the scene reference for creating HP bar graphics */
   setScene(scene: Phaser.Scene): void {
     this.scene = scene;
   }
 
-  /** Register an entity for depth-sorted rendering */
   add(entity: Entity, animPrefix?: string): void {
     const e = entity as AnimEntity;
     e.animPrefix = animPrefix;
     e.animState = 'idle';
+    e.faceDir = 'down';
+    e.lpcDir = 'se';
+    e.kenneyDir = 'se';
     e.prevWorldX = e.worldX;
     e.prevWorldY = e.worldY;
 
-    // Create floating HP bar for enemies
     const ge = entity as GameEntity;
     if (ge.isEnemy && this.scene) {
       e.hpBarBg = this.scene.add.graphics();
@@ -74,7 +160,6 @@ export class EntityRenderer {
     this.entities.set(e.id, e);
   }
 
-  /** Remove an entity and clean up HP bar */
   remove(id: string): void {
     const e = this.entities.get(id);
     if (e) {
@@ -84,40 +169,29 @@ export class EntityRenderer {
     this.entities.delete(id);
   }
 
-  /** Get entity by id */
   get(id: string): Entity | undefined {
     return this.entities.get(id);
   }
 
-  /**
-   * Update depth for all entities based on world position.
-   * Call this every frame to ensure correct front-to-back ordering.
-   */
   updateDepth(): void {
     for (const entity of this.entities.values()) {
-      const depth = calcDepth(entity.worldX, entity.worldY) + ENTITY_DEPTH_OFFSET;
+      const depth = DEPTH_OBSTACLE + calcDepth(entity.worldX, entity.worldY) + ENTITY_DEPTH_OFFSET;
       entity.sprite.setDepth(depth);
     }
   }
 
-  /**
-   * Sync sprite screen position from world coordinates.
-   * Call after entity movement to update visual position.
-   */
   syncPositions(worldToScreenFn: (wx: number, wy: number) => { sx: number; sy: number }): void {
     for (const entity of this.entities.values()) {
       const { sx, sy } = worldToScreenFn(entity.worldX, entity.worldY);
-      entity.sprite.setPosition(sx, sy);
+      entity.sprite.setPosition(sx, sy - ENTITY_Y_LIFT);
       const shadow = (entity.sprite as any).__shadow;
       if (shadow) {
-        shadow.setPosition(sx, sy + 8);
+        shadow.setPosition(sx, sy + 2);
       }
-      // Update floating HP bar position
-      this.updateHpBar(entity, sx, sy);
+      this.updateHpBar(entity, sx, sy - ENTITY_Y_LIFT);
     }
   }
 
-  /** Draw/update enemy floating HP bar */
   private updateHpBar(entity: AnimEntity, sx: number, sy: number): void {
     if (!entity.hpBarBg || !entity.hpBarFill) return;
     const ge = entity as unknown as GameEntity;
@@ -128,7 +202,6 @@ export class EntityRenderer {
     }
 
     const ratio = Math.max(0, ge.hp / ge.maxHp);
-    // Don't show bar at full health
     if (ratio >= 1) {
       entity.hpBarBg.setVisible(false);
       entity.hpBarFill.setVisible(false);
@@ -137,43 +210,36 @@ export class EntityRenderer {
 
     const barX = sx - HP_BAR_W / 2;
     const barY = sy + HP_BAR_OFFSET_Y;
-    const depth = entity.sprite.depth + 0.1;
+    // HP bar always above the entity sprite
+    const depth = entity.sprite.depth + 0.05;
 
     entity.hpBarBg.setVisible(true);
     entity.hpBarBg.clear();
     entity.hpBarBg.setDepth(depth);
-    // Dark background
     entity.hpBarBg.fillStyle(0x000000, 0.7);
     entity.hpBarBg.fillRect(barX - 1, barY - 1, HP_BAR_W + 2, HP_BAR_H + 2);
 
     entity.hpBarFill.setVisible(true);
     entity.hpBarFill.clear();
     entity.hpBarFill.setDepth(depth + 0.01);
-    // Color based on HP ratio
     const color = ratio > 0.5 ? 0xcc3333 : ratio > 0.25 ? 0xcc8833 : 0xff2222;
     entity.hpBarFill.fillStyle(color, 0.9);
     entity.hpBarFill.fillRect(barX, barY, HP_BAR_W * ratio, HP_BAR_H);
-    // Bright top line
     entity.hpBarFill.fillStyle(0xffffff, 0.2);
     entity.hpBarFill.fillRect(barX, barY, HP_BAR_W * ratio, 1);
   }
 
   private dustTimer = 0;
-  private readonly DUST_INTERVAL = 250; // ms between dust puffs
+  private readonly DUST_INTERVAL = 250;
 
-  /**
-   * Auto-detect movement and switch walk/idle animations.
-   * Attack animation is triggered externally via playAttackAnim().
-   */
   updateAnimations(): void {
-    this.dustTimer += 16; // approximate frame time
+    this.dustTimer += 16;
 
     for (const entity of this.entities.values()) {
       if (!entity.animPrefix) continue;
       const sprite = entity.sprite;
       if (!(sprite instanceof Phaser.GameObjects.Sprite)) continue;
 
-      // Don't interrupt attack animation
       if (entity.animState === 'attack') {
         entity.prevWorldX = entity.worldX;
         entity.prevWorldY = entity.worldY;
@@ -185,21 +251,56 @@ export class EntityRenderer {
       const moved = Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001;
 
       if (moved) {
-        if (entity.animState !== 'walk') {
-          entity.animState = 'walk';
-          sprite.play(`${entity.animPrefix}-walk`);
-        }
-        // Flip sprite based on movement direction (positive dx = moving right in world)
-        sprite.setFlipX(dx > 0);
+        if (isKenneyPrefix(entity.animPrefix)) {
+          // Kenney 8-direction mode
+          const newDir = movementToKenneyDir(dx, dy);
+          const dirChanged = newDir !== entity.kenneyDir;
+          entity.kenneyDir = newDir;
+          sprite.setFlipX(false);
 
-        // Footstep dust puff (only for player, throttled)
-        if (entity.animPrefix === 'player' && this.scene && this.dustTimer >= this.DUST_INTERVAL) {
-          this.dustTimer = 0;
-          this.spawnFootDust(sprite.x, sprite.y + 4);
+          if (entity.animState !== 'walk' || dirChanged) {
+            entity.animState = 'walk';
+            sprite.play(kenneyAnimKeyFor(entity.animPrefix, newDir, 'walk'));
+          }
+        } else if (isLpcPrefix(entity.animPrefix)) {
+          // LPC 8-direction mode
+          const newDir = movementToLpcDir(dx, dy);
+          const dirChanged = newDir !== entity.lpcDir;
+          entity.lpcDir = newDir;
+          sprite.setFlipX(false);
+
+          if (entity.animState !== 'walk' || dirChanged) {
+            entity.animState = 'walk';
+            sprite.play(lpcAnimKeyFor(entity.animPrefix, newDir, 'walk'));
+          }
+        } else {
+          // Procedural 3-direction mode
+          const { dir, flipX } = calcFaceDir(dx, dy);
+          const dirChanged = dir !== entity.faceDir;
+          entity.faceDir = dir;
+          sprite.setFlipX(flipX);
+
+          if (entity.animState !== 'walk' || dirChanged) {
+            entity.animState = 'walk';
+            sprite.play(procAnimKey(entity.animPrefix, dir, 'walk'));
+          }
+        }
+
+        if (entity.animPrefix === 'player-kenney' || entity.animPrefix === 'player-lpc' || entity.animPrefix === 'player') {
+          if (this.scene && this.dustTimer >= this.DUST_INTERVAL) {
+            this.dustTimer = 0;
+            this.spawnFootDust(sprite.x, sprite.y + ENTITY_Y_LIFT);
+          }
         }
       } else if (entity.animState === 'walk') {
         entity.animState = 'idle';
-        sprite.play(`${entity.animPrefix}-idle`);
+        if (isKenneyPrefix(entity.animPrefix)) {
+          sprite.play(kenneyAnimKeyFor(entity.animPrefix, entity.kenneyDir ?? 'se', 'idle'));
+        } else if (isLpcPrefix(entity.animPrefix)) {
+          sprite.play(lpcAnimKeyFor(entity.animPrefix, entity.lpcDir ?? 'se', 'idle'));
+        } else {
+          sprite.play(procAnimKey(entity.animPrefix, entity.faceDir ?? 'down', 'idle'));
+        }
       }
 
       entity.prevWorldX = entity.worldX;
@@ -207,7 +308,6 @@ export class EntityRenderer {
     }
   }
 
-  /** Spawn a small dust puff at the character's feet */
   private spawnFootDust(x: number, y: number): void {
     if (!this.scene) return;
     this.scene.add.particles(x, y, 'particle-dust', {
@@ -222,7 +322,6 @@ export class EntityRenderer {
     }).explode(2, x, y);
   }
 
-  /** Update positions, depth, and animations in one call */
   update(worldToScreenFn: (wx: number, wy: number) => { sx: number; sy: number }): void {
     this.updateAnimations();
     this.syncPositions(worldToScreenFn);

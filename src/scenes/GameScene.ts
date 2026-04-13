@@ -2,7 +2,11 @@
 
 import Phaser from 'phaser';
 import { generateTextures } from '../assets/textureGenerator';
-import { worldToScreen, screenToWorld, TILE_WIDTH } from '../systems/isometric';
+import { registerLpcSheet, registerLpcAnims, lpcFrameKey, lpcAnimKey, movementToLpcDir } from '../assets/lpcSprites';
+import type { LpcDir } from '../assets/lpcSprites';
+import { SpriteCompositor } from '../assets/spriteCompositor';
+import { registerKenneyAnims, kenneyAnimKey, kenneyFrameKey } from '../assets/kenneyIsoChar';
+import { worldToScreen, screenToWorld, TILE_WIDTH, TILE_HEIGHT, DEPTH_UI } from '../systems/isometric';
 import { TileMap } from '../systems/tileMap';
 import { ChunkTileMap } from '../systems/chunkTileMap';
 import { EntityRenderer } from '../systems/entityRenderer';
@@ -26,11 +30,24 @@ import {
   DECO_MANOR_WALL, DECO_MANOR_BUILDING, DECO_FLOWER, DECO_BUSH, DECO_CITY_WALL,
 } from '../types';
 
-const MAP_SIZE = 16;
+const MAP_SIZE = 64;
 const MOVE_SPEED = 3;
+
+/**
+ * LPC frames are 256×256 but the character content only occupies roughly the
+ * top-left 110×140 px region.
+ */
+const LPC_SCALE = (TILE_HEIGHT * 4.5) / 256; // ≈ 1.16
+
+/**
+ * Kenney Isometric Miniature frames are 256×512.
+ * The character occupies roughly the bottom 35% of the frame (~180px).
+ * Target ~5 tiles tall in game-space (TILE_HEIGHT * 5 = 330px / 512 ≈ 0.64).
+ */
+const KENNEY_SCALE = (TILE_HEIGHT * 6) / 512; // ≈ 0.77
 const LERP_FACTOR = 0.08;
 const ARRIVAL_THRESHOLD = 0.05;
-const MAX_ENEMIES = 15;
+const MAX_ENEMIES = 25;
 const RESPAWN_DELAY = 5000;
 
 export class GameScene extends Phaser.Scene {
@@ -51,7 +68,12 @@ export class GameScene extends Phaser.Scene {
   private targetX = 0;
   private targetY = 0;
   private isMovingToTarget = false;
-  private hasSpritesheets = false;
+
+  /** LPC compositors for player (layered) and enemy (single sheet) */
+  private playerComp!: SpriteCompositor;
+  private lpcReady = false;
+  /** True when Kenney isometric character frames are loaded */
+  private kenneyReady = false;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -62,7 +84,8 @@ export class GameScene extends Phaser.Scene {
     clearAllAIData();
     generateTextures(this);
     this.createTileAnimations();
-    this.hasSpritesheets = this.textures.exists('sheet-player') && this.textures.exists('sheet-enemy');
+    this.setupLpcSprites();
+    this.setupKenneySprites();
     this.entityRenderer = new EntityRenderer();
     this.entityRenderer.setScene(this);
     
@@ -79,6 +102,7 @@ export class GameScene extends Phaser.Scene {
       addTorchLighting(this, this.worldData!);
       addLavaGlow(this, this.worldData!);
       this.spawnPlayer();
+      this.setupCamera();
     }
     
     this.spawnEnemies();
@@ -88,7 +112,24 @@ export class GameScene extends Phaser.Scene {
     this.combatSystem.setOnPlayerDeath(() => this.handlePlayerDeath());
     this.hud = new HUD(this);
     addAmbientParticles(this);
+    // addVignette must come BEFORE wireHudCamera so the vignette image
+    // is in this.children.list when we collect world objects to ignore.
     this.addVignette();
+    this.wireHudCamera();
+  }
+
+  /**
+   * Tell the UI camera (added by HUD) to ignore all world objects,
+   * so it only renders the HUD elements that the main camera ignores.
+   * Must be called AFTER all world objects (including vignette) are created.
+   */
+  private wireHudCamera(): void {
+    const uiCam = (this as any).__uiCam as Phaser.Cameras.Scene2D.Camera | undefined;
+    if (!uiCam) return;
+    const hudObjects = new Set<Phaser.GameObjects.GameObject>((this as any).__hudObjects ?? []);
+    // Everything NOT in the HUD set → ui camera should ignore it
+    const worldObjects = this.children.list.filter((obj) => !hudObjects.has(obj));
+    uiCam.ignore(worldObjects);
   }
 
   update(time: number, delta: number): void {
@@ -136,47 +177,38 @@ export class GameScene extends Phaser.Scene {
 
     this.tileMap = new TileMap(MAP_SIZE, MAP_SIZE);
 
-    // Register DCSS tile textures with variants
-    this.tileMap.setTileTexture(TILE_GRASS, 'dcss-grass-full', 'dcss-grass-north', 'dcss-grass-south');
-    this.tileMap.setTileTexture(TILE_STONE, 'dcss-floor_cobble_blood_1_new', 'dcss-floor_crypt_10', 'dcss-floor_limestone_0');
+    this.tileMap.setTileTexture(TILE_GRASS, 'tile-grass-0', 'tile-grass-1', 'tile-grass-2');
+    this.tileMap.setTileTexture(TILE_STONE, 'tile-stone-0', 'tile-stone-1', 'tile-stone-2');
     this.tileMap.setTileTexture(TILE_WATER, 'tile-water');
     this.tileMap.setTileTexture(TILE_DEEP_WATER, 'tile-deep-water');
     this.tileMap.setTileTexture(TILE_SHALLOW_WATER, 'tile-shallow-water');
-
-    // Animated water/lava tiles (keep procedural)
     this.tileMap.setTileAnimation(TILE_WATER, 'anim-water', 'tile-water-f0');
     this.tileMap.setTileAnimation(TILE_DEEP_WATER, 'anim-deep-water', 'tile-deep-water-f0');
     this.tileMap.setTileAnimation(TILE_SHALLOW_WATER, 'anim-shallow-water', 'tile-shallow-water-f0');
-    this.tileMap.setTileTexture(TILE_GRASS_DARK, 'dcss-grass-full');
-    this.tileMap.setTileTexture(TILE_DIRT, 'dcss-floor_dirt_0_new', 'dcss-floor_dirt_1_new');
+    this.tileMap.setTileTexture(TILE_GRASS_DARK, 'tile-grass-dark-0', 'tile-grass-dark-1', 'tile-grass-dark-2');
+    this.tileMap.setTileTexture(TILE_DIRT, 'tile-dirt-0', 'tile-dirt-1', 'tile-dirt-2');
     this.tileMap.setTileTexture(TILE_LAVA, 'tile-lava');
     this.tileMap.setTileAnimation(TILE_LAVA, 'anim-lava', 'tile-lava-f0');
-
-    // World map terrain
-    this.tileMap.setTileTexture(TILE_SAND, 'dcss-floor_sand_1', 'dcss-floor_sand_2', 'dcss-floor_sand_3');
+    this.tileMap.setTileTexture(TILE_SAND, 'tile-sand-0', 'tile-sand-1', 'tile-sand-2');
     this.tileMap.setTileTexture(TILE_MOUNTAIN, 'tile-mountain-0', 'tile-mountain-1', 'tile-mountain-2');
     this.tileMap.setTileTexture(TILE_MOUNTAIN_PATH, 'tile-mountain-path-0', 'tile-mountain-path-1', 'tile-mountain-path-2');
-    this.tileMap.setTileTexture(TILE_TOWN_ROAD, 'dcss-floor_limestone_1', 'dcss-floor_limestone_2');
-    this.tileMap.setTileTexture(TILE_VILLAGE_DIRT, 'dcss-floor_dirt_0_new');
+    this.tileMap.setTileTexture(TILE_TOWN_ROAD, 'tile-town-road-0', 'tile-town-road-1', 'tile-town-road-2');
+    this.tileMap.setTileTexture(TILE_VILLAGE_DIRT, 'tile-village-dirt-0', 'tile-village-dirt-1', 'tile-village-dirt-2');
     this.tileMap.setTileTexture(TILE_FARMLAND, 'tile-farmland-0', 'tile-farmland-1', 'tile-farmland-2');
-    this.tileMap.setTileTexture(TILE_MANOR_FLOOR, 'dcss-floor_limestone_0');
-    this.tileMap.setTileTexture(TILE_MANOR_GARDEN, 'dcss-grass-full');
+    this.tileMap.setTileTexture(TILE_MANOR_FLOOR, 'tile-manor-floor-0', 'tile-manor-floor-1', 'tile-manor-floor-2');
+    this.tileMap.setTileTexture(TILE_MANOR_GARDEN, 'tile-manor-garden-0', 'tile-manor-garden-1', 'tile-manor-garden-2');
 
-    // Obstacles - use DCSS
-    this.tileMap.setTileTexture(TILE_OBSTACLE_ROCK, 'dcss-rock');
-    this.tileMap.setTileTexture(TILE_OBSTACLE_TREE, 'dcss-tree');
-    this.tileMap.setTileTexture(TILE_WALL, 'dcss-wall-brick_brown_0', 'dcss-wall-brick_brown_1', 'dcss-wall-brick_brown_2');
+    this.tileMap.setTileTexture(TILE_OBSTACLE_ROCK, 'obstacle-rock');
+    this.tileMap.setTileTexture(TILE_OBSTACLE_TREE, 'obstacle-tree');
+    this.tileMap.setTileTexture(TILE_WALL, 'tile-wall-0', 'tile-wall-1', 'tile-wall-2');
 
-    // Decorations - use DCSS where available
     this.tileMap.setTileTexture(DECO_TORCH, 'deco-torch');
     this.tileMap.setTileAnimation(DECO_TORCH, 'anim-torch', 'deco-torch-f0');
-    this.tileMap.setTileTexture(DECO_CHEST, 'dcss-chest');
+    this.tileMap.setTileTexture(DECO_CHEST, 'deco-chest');
     this.tileMap.setTileTexture(DECO_TABLE, 'deco-table');
     this.tileMap.setTileTexture(DECO_BARREL, 'deco-barrel');
     this.tileMap.setTileTexture(DECO_BONES, 'deco-bones');
-    this.tileMap.setTileTexture(DECO_PILLAR, 'dcss-pillar');
-
-    // World map decorations
+    this.tileMap.setTileTexture(DECO_PILLAR, 'deco-pillar');
     this.tileMap.setTileTexture(DECO_HOUSE, 'deco-house');
     this.tileMap.setTileTexture(DECO_SHOP, 'deco-shop');
     this.tileMap.setTileTexture(DECO_FENCE, 'deco-fence');
@@ -187,16 +219,12 @@ export class GameScene extends Phaser.Scene {
     this.tileMap.setTileTexture(DECO_BUSH, 'deco-bush');
     this.tileMap.setTileTexture(DECO_CITY_WALL, 'deco-city-wall');
 
-    this.tileMap.addLayer(world.ground);      // layer 0: ground
-    this.tileMap.addLayer(world.obstacles);    // layer 1: obstacles/walls
-    this.tileMap.addLayer(world.decorations);  // layer 2: decorations
+    this.tileMap.addLayer(world.ground);
+    this.tileMap.addLayer(world.obstacles);
+    this.tileMap.addLayer(world.decorations);
 
     this.tileMap.renderAllWithModes(this, ['ground', 'obstacle', 'decoration']);
-
-    // Terrain edge transitions (soft blending between different biomes)
     this.tileMap.renderTerrainEdges(this, 0);
-
-    // Wall shadows on adjacent floor tiles
     this.tileMap.renderWallShadows(this, 1);
   }
 
@@ -221,23 +249,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private registerTileTextures(tileMap: TileMap | ChunkTileMap): void {
-    tileMap.setTileTexture(TILE_GRASS, 'dcss-grass-full', 'dcss-grass-north', 'dcss-grass-south');
-    tileMap.setTileTexture(TILE_STONE, 'dcss-floor_cobble_blood_1_new', 'dcss-floor_crypt_10', 'dcss-floor_limestone_0');
+    tileMap.setTileTexture(TILE_GRASS, 'tile-grass-0', 'tile-grass-1', 'tile-grass-2');
+    tileMap.setTileTexture(TILE_STONE, 'tile-stone-0', 'tile-stone-1', 'tile-stone-2');
     tileMap.setTileTexture(TILE_WATER, 'tile-water');
     tileMap.setTileTexture(TILE_DEEP_WATER, 'tile-deep-water');
     tileMap.setTileTexture(TILE_SHALLOW_WATER, 'tile-shallow-water');
     tileMap.setTileAnimation(TILE_WATER, 'anim-water', 'tile-water-f0');
     tileMap.setTileAnimation(TILE_DEEP_WATER, 'anim-deep-water', 'tile-deep-water-f0');
     tileMap.setTileAnimation(TILE_SHALLOW_WATER, 'anim-shallow-water', 'tile-shallow-water-f0');
-    tileMap.setTileTexture(TILE_GRASS_DARK, 'dcss-grass-full');
-    tileMap.setTileTexture(TILE_DIRT, 'dcss-floor_dirt_0_new', 'dcss-floor_dirt_1_new');
+    tileMap.setTileTexture(TILE_GRASS_DARK, 'tile-grass-dark-0', 'tile-grass-dark-1', 'tile-grass-dark-2');
+    tileMap.setTileTexture(TILE_DIRT, 'tile-dirt-0', 'tile-dirt-1', 'tile-dirt-2');
     tileMap.setTileTexture(TILE_LAVA, 'tile-lava');
     tileMap.setTileAnimation(TILE_LAVA, 'anim-lava', 'tile-lava-f0');
-    tileMap.setTileTexture(TILE_SAND, 'dcss-floor_sand_1', 'dcss-floor_sand_2', 'dcss-floor_sand_3');
+    tileMap.setTileTexture(TILE_SAND, 'tile-sand-0', 'tile-sand-1', 'tile-sand-2');
     tileMap.setTileTexture(TILE_MOUNTAIN, 'tile-mountain-0', 'tile-mountain-1', 'tile-mountain-2');
     tileMap.setTileTexture(TILE_MOUNTAIN_PATH, 'tile-mountain-path-0', 'tile-mountain-path-1', 'tile-mountain-path-2');
-    tileMap.setTileTexture(TILE_OBSTACLE_ROCK, 'dcss-rock');
-    tileMap.setTileTexture(TILE_OBSTACLE_TREE, 'dcss-tree');
+    tileMap.setTileTexture(TILE_OBSTACLE_ROCK, 'obstacle-rock');
+    tileMap.setTileTexture(TILE_OBSTACLE_TREE, 'obstacle-tree');
     tileMap.setTileTexture(DECO_FLOWER, 'deco-flower');
     tileMap.setTileTexture(DECO_BUSH, 'deco-bush');
   }
@@ -273,23 +301,143 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * Register LPC spritesheets, cut frames, build compositor, and create Phaser anims.
+   * Falls back to procedural textures if LPC sheets didn't load.
+   */
+  private setupLpcSprites(): void {
+    const baseTex = this.textures.get('male_base');
+    if (!baseTex || baseTex.key === '__MISSING') {
+      // LPC sheets not loaded — fall back to procedural character anims
+      this.createProceduralCharacterAnimations();
+      return;
+    }
+
+    // Register frame cuts for player layers
+    const playerSheets = ['male_base', 'male_light', 'male_longsword'];
+    for (const s of playerSheets) registerLpcSheet(this, s);
+
+    // Register frame cuts for enemy (skeleton)
+    registerLpcSheet(this, 'skeleton');
+
+    // Build composited player textures
+    this.playerComp = new SpriteCompositor(this, 'player', {
+      body: 'male_base',
+      armor: 'male_light',
+      weapon: 'male_longsword',
+    });
+    this.playerComp.buildTextures();
+
+    // Register Phaser animations from composited frames
+    this.registerLpcCompositorAnims('player', this.playerComp);
+    // Enemy: raw skeleton sheet (no compositing needed)
+    registerLpcAnims(this, 'skeleton');
+
+    this.lpcReady = true;
+  }
+
+  /** Register idle/walk/attack Phaser animations that pull from compositor frame keys */
+  private registerLpcCompositorAnims(id: string, comp: SpriteCompositor): void {
+    const dirs: LpcDir[] = ['se', 's', 'sw', 'w', 'nw', 'n', 'ne', 'e'];
+    for (const dir of dirs) {
+      this.anims.create({
+        key: `comp:${id}:${dir}:idle`,
+        frames: [
+          { key: comp.frameKey(dir, 'walk', 0) },
+          { key: comp.frameKey(dir, 'walk', 1) },
+        ],
+        frameRate: 1.5,
+        repeat: -1,
+      });
+      this.anims.create({
+        key: `comp:${id}:${dir}:walk`,
+        frames: [0, 1, 2, 3].map((i) => ({ key: comp.frameKey(dir, 'walk', i) })),
+        frameRate: 7,
+        repeat: -1,
+      });
+      this.anims.create({
+        key: `comp:${id}:${dir}:attack`,
+        frames: [{ key: comp.frameKey(dir, 'attack', 0) }],
+        frameRate: 8,
+        repeat: 0,
+      });
+    }
+  }
+
+  /** Register Kenney Isometric Miniature character animations */
+  private setupKenneySprites(): void {
+    // Check if the first frame loaded successfully
+    const testKey = kenneyFrameKey('Male', 4, 'idle', 0);
+    if (!this.textures.exists(testKey)) return;
+    registerKenneyAnims(this, 'Male');
+    this.kenneyReady = true;
+  }
+
+  /** Fallback: old procedurally-generated directional animations */
+  private createProceduralCharacterAnimations(): void {
+    const prefixes = ['player', 'enemy'];
+    const dirs = ['down', 'up', 'side'];
+    for (const prefix of prefixes) {
+      for (const dir of dirs) {
+        const tag = `${prefix}-${dir}`;
+        const charTag = `char-${tag}`;
+        this.anims.create({
+          key: `${tag}-idle`,
+          frames: [{ key: `${charTag}-idle-0` }, { key: `${charTag}-idle-1` }],
+          frameRate: 2, repeat: -1,
+        });
+        this.anims.create({
+          key: `${tag}-walk`,
+          frames: [
+            { key: `${charTag}-walk-0` }, { key: `${charTag}-walk-1` },
+            { key: `${charTag}-walk-2` }, { key: `${charTag}-walk-3` },
+          ],
+          frameRate: 6, repeat: -1,
+        });
+        this.anims.create({
+          key: `${tag}-attack`,
+          frames: [
+            { key: `${charTag}-attack-0` }, { key: `${charTag}-attack-1` },
+            { key: `${charTag}-attack-2` },
+          ],
+          frameRate: 10, repeat: 0,
+        });
+      }
+    }
+  }
+
   private spawnPlayer(): void {
     const { x: wx, y: wy } = this.worldData!.playerSpawn;
     const { sx, sy } = worldToScreen(wx, wy);
 
-    let sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
-    if (this.hasSpritesheets) {
-      const s = this.add.sprite(sx, sy, 'sheet-player', 16);
-      s.setScale(0.25);
-      s.play('player-idle');
-      sprite = s;
-    } else {
-      sprite = this.add.image(sx, sy, 'char-player');
-    }
-    sprite.setOrigin(0.5, 0.8);
+    let sprite: Phaser.GameObjects.Sprite;
+    let animPrefix: string;
 
-    // Add shadow below character
-    const shadow = this.add.ellipse(sx, sy + 8, 12, 5, 0x000000, 0.3);
+    if (this.kenneyReady) {
+      // Kenney Isometric Miniature: 256×512 frames, character in lower ~35%
+      // Feet are at ~94% from top of the 512px frame
+      const initKey = kenneyFrameKey('Male', 4, 'idle', 0);
+      sprite = this.add.sprite(sx, sy, initKey);
+      sprite.setOrigin(0.5, 0.94);
+      sprite.setScale(KENNEY_SCALE);
+      sprite.play(kenneyAnimKey('Male', 'se', 'idle'));
+      animPrefix = 'player-kenney';
+    } else if (this.lpcReady) {
+      const initKey = this.playerComp.frameKey('se', 'walk', 0);
+      sprite = this.add.sprite(sx, sy, initKey);
+      sprite.setOrigin(0.30, 0.62);
+      sprite.setScale(LPC_SCALE);
+      sprite.play('comp:player:se:idle');
+      animPrefix = 'player-lpc';
+    } else {
+      sprite = this.add.sprite(sx, sy, 'char-player-down-idle-0');
+      sprite.setOrigin(0.5, 0.95);
+      sprite.setScale(2);
+      sprite.play('player-down-idle');
+      animPrefix = 'player';
+    }
+
+    const shadow = this.add.ellipse(sx, sy + 4, 36, 10, 0x000000, 0.28);
     shadow.setOrigin(0.5);
     (sprite as any).__shadow = shadow;
 
@@ -300,7 +448,7 @@ export class GameScene extends Phaser.Scene {
     };
     this.targetX = wx;
     this.targetY = wy;
-    this.entityRenderer.add(this.player, this.hasSpritesheets ? 'player' : undefined);
+    this.entityRenderer.add(this.player, animPrefix);
   }
 
   private spawnEnemies(): void {
@@ -313,21 +461,34 @@ export class GameScene extends Phaser.Scene {
   private createEnemy(wx: number, wy: number): GameEntity {
     const { sx, sy } = worldToScreen(wx, wy);
 
-    let sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
-    if (this.hasSpritesheets) {
-      const s = this.add.sprite(sx, sy, 'sheet-enemy', 16);
-      s.setScale(0.25);
-      s.play('enemy-idle');
-      sprite = s;
-    } else {
-      sprite = this.add.image(sx, sy, 'char-enemy');
-    }
-    sprite.setOrigin(0.5, 0.8);
-    // Slight red tint to distinguish enemies
-    sprite.setTint(0xff8888);
+    let sprite: Phaser.GameObjects.Sprite;
+    let animPrefix: string;
 
-    // Add shadow
-    const shadow = this.add.ellipse(sx, sy + 8, 12, 5, 0x000000, 0.3);
+    if (this.kenneyReady) {
+      // Reuse the same Male variant for enemies (tinted red to distinguish)
+      const initKey = kenneyFrameKey('Male', 4, 'idle', 0);
+      sprite = this.add.sprite(sx, sy, initKey);
+      sprite.setOrigin(0.5, 0.94);
+      sprite.setScale(KENNEY_SCALE * 0.9); // slightly smaller than player
+      sprite.setTint(0xff8888); // red tint to distinguish enemies
+      sprite.play(kenneyAnimKey('Male', 'se', 'idle'));
+      animPrefix = 'enemy-kenney';
+    } else if (this.lpcReady) {
+      const initKey = lpcFrameKey('skeleton', 'se', 'walk', 0);
+      sprite = this.add.sprite(sx, sy, initKey);
+      sprite.setOrigin(0.30, 0.62);
+      sprite.setScale(LPC_SCALE);
+      sprite.play(lpcAnimKey('skeleton', 'se', 'idle'));
+      animPrefix = 'enemy-lpc';
+    } else {
+      sprite = this.add.sprite(sx, sy, 'char-enemy-down-idle-0');
+      sprite.setOrigin(0.5, 0.95);
+      sprite.setScale(2);
+      sprite.play('enemy-down-idle');
+      animPrefix = 'enemy';
+    }
+
+    const shadow = this.add.ellipse(sx, sy + 4, 32, 9, 0x000000, 0.25);
     shadow.setOrigin(0.5);
     (sprite as any).__shadow = shadow;
 
@@ -337,7 +498,7 @@ export class GameScene extends Phaser.Scene {
       attackCooldown: 1.5, lastAttackTime: 0, isEnemy: true, alive: true,
     };
     this.enemies.push(enemy);
-    this.entityRenderer.add(enemy, this.hasSpritesheets ? 'enemy' : undefined);
+    this.entityRenderer.add(enemy, animPrefix);
     return enemy;
   }
 
@@ -355,26 +516,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePlayerDeath(): void {
-    const cx = this.cameras.main.width / 2;
-    const cy = this.cameras.main.height / 2;
+    const cx = this.scale.width / 2;
+    const cy = this.scale.height / 2;
 
-    const overlay = this.add.rectangle(cx, cy, this.cameras.main.width, this.cameras.main.height, 0x000000, 0.6);
+    const overlay = this.add.rectangle(cx, cy, this.scale.width, this.scale.height, 0x000000, 0.6);
     overlay.setScrollFactor(0);
-    overlay.setDepth(11000);
+    overlay.setDepth(DEPTH_UI + 200);
 
     const gameOverText = this.add.text(cx, cy - 20, '你死了', {
       fontSize: '32px', color: '#ff4444', fontStyle: 'bold',
     });
     gameOverText.setOrigin(0.5);
     gameOverText.setScrollFactor(0);
-    gameOverText.setDepth(11001);
+    gameOverText.setDepth(DEPTH_UI + 201);
 
     const restartText = this.add.text(cx, cy + 30, '点击重新开始', {
       fontSize: '16px', color: '#cccccc',
     });
     restartText.setOrigin(0.5);
     restartText.setScrollFactor(0);
-    restartText.setDepth(11001);
+    restartText.setDepth(DEPTH_UI + 201);
 
     this.input.once('pointerdown', () => this.scene.restart());
   }
@@ -411,7 +572,7 @@ export class GameScene extends Phaser.Scene {
     );
 
     this.cameraSystem.follow(this.player.sprite);
-    this.cameraSystem.setZoom(0.5);
+    this.cameraSystem.setZoom(0.55);
   }
 
   private calcDynamicChunkBounds(): { minX: number; maxX: number; minY: number; maxY: number } {
@@ -465,7 +626,10 @@ export class GameScene extends Phaser.Scene {
       const tx = Math.round(wx);
       const ty = Math.round(wy);
 
-      if (this.useChunkSystem && this.chunkTileMap && this.chunkTileMap.isWalkable(tx, ty)) {
+      const walkable = this.useChunkSystem && this.chunkTileMap
+        ? this.chunkTileMap.isWalkable(tx, ty)
+        : this.tileMap.isWalkable(tx, ty);
+      if (walkable) {
         this.targetX = tx;
         this.targetY = ty;
         this.isMovingToTarget = true;
@@ -521,16 +685,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addVignette(): void {
-    const w = this.cameras.main.width;
-    const h = this.cameras.main.height;
+    const w = this.scale.width;
+    const h = this.scale.height;
 
-    // Generate vignette texture using radial gradient
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d')!;
 
-    // Radial gradient: transparent center -> dark edges
     const gradient = ctx.createRadialGradient(w / 2, h / 2, w * 0.25, w / 2, h / 2, w * 0.75);
     gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
     gradient.addColorStop(0.5, 'rgba(0, 0, 0, 0.05)');
@@ -539,20 +701,24 @@ export class GameScene extends Phaser.Scene {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
 
-    // Add slight warm tint at bottom for ground glow
     const bottomGrad = ctx.createLinearGradient(0, h * 0.7, 0, h);
     bottomGrad.addColorStop(0, 'rgba(20, 10, 5, 0)');
     bottomGrad.addColorStop(1, 'rgba(20, 10, 5, 0.15)');
     ctx.fillStyle = bottomGrad;
     ctx.fillRect(0, 0, w, h);
 
-    // Register as Phaser texture and overlay as fixed UI element
     if (this.textures.exists('vignette')) this.textures.remove('vignette');
     this.textures.addCanvas('vignette', canvas);
+
+    // Vignette belongs to the UI camera (1:1 screen pixels, no scroll/zoom issues).
+    // Add it to __hudObjects so wireHudCamera keeps it in UI cam and out of main cam.
     const vignette = this.add.image(w / 2, h / 2, 'vignette');
-    vignette.setScrollFactor(0);
-    vignette.setDepth(9999);
+    vignette.setDepth(DEPTH_UI - 1); // behind HUD panels but above world
     vignette.setBlendMode(Phaser.BlendModes.MULTIPLY);
+    this.cameras.main.ignore(vignette);
+    const hudObjects: Phaser.GameObjects.GameObject[] = (this as any).__hudObjects ?? [];
+    hudObjects.push(vignette);
+    (this as any).__hudObjects = hudObjects;
   }
 
   private calcWorldBounds() {

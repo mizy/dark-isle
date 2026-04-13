@@ -6,14 +6,14 @@ import { PreviewScene } from './scenes/PreviewScene';
 /** @entry */
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 800,
-  height: 600,
   backgroundColor: '#7a5c3a',
   parent: document.body,
   scene: [BootScene, GameScene],
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: window.innerWidth,
+    height: window.innerHeight,
   },
 };
 
