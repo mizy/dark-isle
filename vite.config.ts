@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: './',
+  base: "./",
   build: {
-    target: 'esnext',
+    target: "esnext",
+    rollupOptions: {
+      input: {
+        main: "./index.html",
+        debug: "./debug.html",
+      },
+    },
   },
 });

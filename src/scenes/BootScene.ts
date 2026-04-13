@@ -44,11 +44,21 @@ export class BootScene extends Phaser.Scene {
     this.load.image('dcss-chest', 'assets/dcss/dungeon/chest.png');
     this.load.image('dcss-pillar', 'assets/dcss/dungeon/zot_pillar.png');
 
-    // Player character - DCSS deep elf blademaster (32x32 single frame, not spritesheet)
-    this.load.image('char-player', 'assets/dcss/monster/deep_elf_blademaster.png');
+    // Player character - Kenney roguelike spritesheet (male longsword, cartoon style)
+    this.load.spritesheet('sheet-player', 'assets/characters/male_longsword.png', {
+      frameWidth: 64,
+      frameHeight: 128,
+      margin: 0,
+      spacing: 0,
+    });
 
-    // Enemy - DCSS skeleton
-    this.load.image('char-enemy', 'assets/dcss/monster/skeleton.png');
+    // Enemy - Kenney roguelike skeleton spritesheet
+    this.load.spritesheet('sheet-enemy', 'assets/characters/skeleton.png', {
+      frameWidth: 64,
+      frameHeight: 128,
+      margin: 0,
+      spacing: 0,
+    });
   }
 
   create() {

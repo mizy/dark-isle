@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
+import { PreviewScene } from './scenes/PreviewScene';
 
 /** @entry */
 const config: Phaser.Types.Core.GameConfig = {
