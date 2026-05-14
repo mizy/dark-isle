@@ -1,6 +1,7 @@
 {
   "name": "dark-isle",
   "version": "1.0.0",
+  "description": "游戏项目",
   "private": true,
   "type": "module",
   "scripts": {
