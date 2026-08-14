@@ -60,6 +60,7 @@ export class BootScene extends Phaser.Scene {
     // Kenney Isometric Miniature Dungeon characters (CC0)
 
     preloadKenneyChar(this, 'Male');
+  }
 
   create() {
     this.cameras.main.setBackgroundColor('#08070f');
